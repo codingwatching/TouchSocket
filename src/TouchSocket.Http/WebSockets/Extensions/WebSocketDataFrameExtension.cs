@@ -68,13 +68,13 @@ public static class WebSocketDataFrameExtension
     /// <param name="byteBlock">字节块对象，用于存储构建的请求数据</param>
     /// <typeparam name="TByteBlock">泛型参数，指定字节块的类型，必须实现IByteBlock接口</typeparam>
     /// <remarks>
-    /// 此方法通过设置数据帧的Mask属性为true，并确保数据帧具有MaskingKey，
+    /// 此方法通过设置数据帧的Mask属性为<see langword="true"/>，并确保数据帧具有MaskingKey，
     /// 然后调用dataFrame的Build方法来构建请求数据，并将结果存储在byteBlock中。
     /// 如果MaskingKey未设置，则使用"RRQM"作为默认值。
     /// </remarks>
     public static void BuildRequest<TByteBlock>(this WSDataFrame dataFrame, ref TByteBlock byteBlock) where TByteBlock : IByteBlock
     {
-        // 设置数据帧的Mask属性为true，表示数据在传输前会被掩码处理
+        // 设置数据帧的Mask属性为<see langword="true"/>，表示数据在传输前会被掩码处理
         dataFrame.Mask = true;
         // 检查MaskingKey是否已设置，如果没有设置，则使用默认值"RRQM"
         if (dataFrame.MaskingKey == null)
@@ -92,7 +92,7 @@ public static class WebSocketDataFrameExtension
     /// <returns>构建完成的字节数组</returns>
     public static byte[] BuildRequestToBytes(this WSDataFrame dataFrame)
     {
-        // 设置数据帧的Mask属性为true，确保数据帧被掩码处理
+        // 设置数据帧的Mask属性为<see langword="true"/>，确保数据帧被掩码处理
         dataFrame.Mask = true;
         // 如果数据帧的MaskingKey属性为空，则设置MaskingKey
         if (dataFrame.MaskingKey == null)

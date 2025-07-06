@@ -10,6 +10,7 @@
 //  感谢您的下载和使用
 //------------------------------------------------------------------------------
 
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 using TouchSocket.Sockets;
@@ -53,9 +54,9 @@ public class MqttTcpSessionClient : TcpSessionClientBase, IMqttTcpSessionClient
         await this.PluginManager.RaiseAsync(typeof(IMqttReceivedPlugin), this.Resolver, this, e).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }
 
-    private Task PrivateMqttOnSend(MqttActor mqttActor, MqttMessage message)
+    private Task PrivateMqttOnSend(MqttActor mqttActor, MqttMessage message,CancellationToken token)
     {
-        return base.ProtectedSendAsync(message);
+        return base.ProtectedSendAsync(message, token);
     }
 
     #endregion MqttActor
@@ -122,7 +123,7 @@ public class MqttTcpSessionClient : TcpSessionClientBase, IMqttTcpSessionClient
 
             await this.PluginManager.RaiseAsync(typeof(IMqttReceivingPlugin), this.Resolver, this, new MqttReceivingEventArgs(mqttMessage)).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
 
-            await this.m_mqttActor.InputMqttMessageAsync(mqttMessage).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.m_mqttActor.InputMqttMessageAsync(mqttMessage, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         await base.OnTcpReceived(e).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }

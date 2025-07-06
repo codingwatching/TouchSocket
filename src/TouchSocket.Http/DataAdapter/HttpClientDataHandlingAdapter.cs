@@ -22,7 +22,7 @@ namespace TouchSocket.Http;
 /// </summary>
 internal sealed class HttpClientDataHandlingAdapter : SingleStreamDataHandlingAdapter
 {
-    private readonly AsyncAutoResetEvent m_autoResetEvent = new AsyncAutoResetEvent(false);
+    private readonly AsyncAutoResetEvent m_autoResetEvent = new AsyncAutoResetEvent();
     private HttpResponse m_httpResponse;
     private HttpResponse m_httpResponseRoot;
     private long m_surLen;
@@ -55,15 +55,15 @@ internal sealed class HttpClientDataHandlingAdapter : SingleStreamDataHandlingAd
     {
         if (disposing)
         {
-            this.m_autoResetEvent.Set();
-            this.m_autoResetEvent.Dispose();
+            this.m_autoResetEvent.SetAll();
+            //this.m_autoResetEvent.Dispose();
         }
         base.Dispose(disposing);
     }
 
     /// <inheritdoc/>
     /// <param name="byteBlock"></param>
-    protected override async Task PreviewReceivedAsync(ByteBlock byteBlock)
+    protected override async Task PreviewReceivedAsync(IByteBlockReader byteBlock)
     {
         this.s = byteBlock.ToString();
 
@@ -85,7 +85,7 @@ internal sealed class HttpClientDataHandlingAdapter : SingleStreamDataHandlingAd
         }
     }
 
-    private void Cache(ByteBlock byteBlock)
+    private void Cache(IByteBlockReader byteBlock)
     {
         if (byteBlock.CanReadLength > 0)
         {
@@ -98,7 +98,7 @@ internal sealed class HttpClientDataHandlingAdapter : SingleStreamDataHandlingAd
         }
     }
 
-    private async Task<FilterResult> ReadChunk(ByteBlock byteBlock)
+    private async Task<FilterResult> ReadChunk(IByteBlockReader byteBlock)
     {
         var position = byteBlock.Position;
         var index = byteBlock.Span.Slice(byteBlock.Position, byteBlock.CanReadLength).IndexOf(TouchSocketHttpUtility.CRLF);
@@ -139,10 +139,10 @@ internal sealed class HttpClientDataHandlingAdapter : SingleStreamDataHandlingAd
 
     private Task RunGoReceived(HttpResponse response)
     {
-        return Task.Run(() => this.GoReceivedAsync(null, response));
+        return EasyTask.SafeRun(() => this.GoReceivedAsync(null, response));
     }
 
-    private async Task Single(ByteBlock byteBlock)
+    private async Task Single(IByteBlockReader byteBlock)
     {
         while (byteBlock.CanReadLength > 0)
         {

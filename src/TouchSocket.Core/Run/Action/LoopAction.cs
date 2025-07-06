@@ -164,7 +164,7 @@ public sealed class LoopAction : DisposableObject
     {
         return this.RunStatus != RunStatus.None
             ? EasyTask.CompletedTask
-            : Task.Run(async () =>
+            : EasyTask.SafeRun(async () =>
          {
              this.RunStatus = RunStatus.Running;
              if (this.LoopCount >= 0)
@@ -212,7 +212,6 @@ public sealed class LoopAction : DisposableObject
     {
         if (this.RunStatus == RunStatus.Running)
         {
-            this.m_waitHandle.Reset();
             this.RunStatus = RunStatus.Paused;
         }
     }
@@ -239,8 +238,11 @@ public sealed class LoopAction : DisposableObject
         {
             return;
         }
-        this.m_waitHandle.Dispose();
-        this.RunStatus = RunStatus.Disposed;
+        if (disposing)
+        {
+            this.RunStatus = RunStatus.Disposed;
+            m_waitHandle.SetAll();
+        }
         base.Dispose(disposing);
     }
 }

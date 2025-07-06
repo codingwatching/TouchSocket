@@ -34,19 +34,37 @@ internal class WaitCreateChannelPackage : WaitRouterPackage
     /// </summary>
     public bool Random { get; set; }
 
-    public override void PackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void PackageBody<TWriter>(ref TWriter writer)
     {
-        base.PackageBody(ref byteBlock);
-        byteBlock.WriteBoolean(this.Random);
-        byteBlock.WriteInt32(this.ChannelId);
-        byteBlock.WritePackage(this.Metadata);
+        base.PackageBody(ref writer);
+        writer.WriteBoolean(this.Random);
+        writer.WriteInt32(this.ChannelId);
+
+        if (this.Metadata is null)
+        {
+            writer.WriteNull();
+        }
+        else
+        {
+            writer.WriteNotNull();
+            this.Metadata.Package(ref writer);
+        }
     }
 
-    public override void UnpackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void UnpackageBody<TReader>(ref TReader reader)
     {
-        base.UnpackageBody(ref byteBlock);
-        this.Random = byteBlock.ReadBoolean();
-        this.ChannelId = byteBlock.ReadInt32();
-        this.Metadata = byteBlock.ReadPackage<Metadata>();
+        base.UnpackageBody(ref reader);
+        this.Random = reader.ReadBoolean();
+        this.ChannelId = reader.ReadInt32();
+        if (reader.ReadIsNull())
+        {
+            this.Metadata = null;
+        }
+        else
+        {
+            var metadata = new Metadata();
+            metadata.Unpackage(ref reader);
+            this.Metadata = metadata;
+        }
     }
 }

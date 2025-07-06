@@ -19,7 +19,7 @@ internal class DataTableFastBinaryConverter : FastBinaryConverter<DataTable>
 {
     protected override DataTable Read<TByteBlock>(ref TByteBlock byteBlock, Type type)
     {
-        var bytes = byteBlock.ReadBytesPackage();
+        var bytes = byteBlock.ReadBytesPackageSpan().ToArray();
         return SerializeConvert.BinaryDeserialize<DataTable>(bytes);
     }
 

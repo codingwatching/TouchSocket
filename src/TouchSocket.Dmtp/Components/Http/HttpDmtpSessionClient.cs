@@ -111,9 +111,9 @@ public abstract class HttpDmtpSessionClient : HttpSessionClient, IHttpDmtpSessio
         this.SetAdapter(new DmtpAdapter());
     }
 
-    private Task ThisDmtpActorOutputSendAsync(DmtpActor actor, ReadOnlyMemory<byte> memory)
+    private Task ThisDmtpActorOutputSendAsync(DmtpActor actor, ReadOnlyMemory<byte> memory,CancellationToken token)
     {
-        return base.ProtectedDefaultSendAsync(memory);
+        return base.ProtectedDefaultSendAsync(memory, token);
     }
 
     #region Override

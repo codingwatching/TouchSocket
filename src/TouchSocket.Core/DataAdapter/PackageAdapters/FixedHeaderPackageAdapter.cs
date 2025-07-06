@@ -13,6 +13,8 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Resources;
 
@@ -49,7 +51,7 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
     /// 当接收到数据时处理数据
     /// </summary>
     /// <param name="byteBlock">数据流</param>
-    protected override async Task PreviewReceivedAsync(ByteBlock byteBlock)
+    protected override async Task PreviewReceivedAsync(IByteBlockReader byteBlock)
     {
         var array = byteBlock.Memory.GetArray();
         var buffer = array.Array;
@@ -106,18 +108,18 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
 
 
     /// <inheritdoc/>
-    protected override Task PreviewSendAsync(IRequestInfo requestInfo)
+    protected override Task PreviewSendAsync(IRequestInfo requestInfo, CancellationToken token = default)
     {
         throw new NotImplementedException();
     }
 
     /// <inheritdoc/>
-    protected override async Task PreviewSendAsync(ReadOnlyMemory<byte> memory)
+    protected override async Task PreviewSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token = default)
     {
         this.ThrowIfLengthValidationFailed(memory.Length);
 
         ByteBlock byteBlock;
-        byte[] lenBytes;
+        Span<byte> lenBytes;
 
         switch (this.FixedHeaderType)
         {
@@ -132,14 +134,16 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
                 {
                     var dataLen = (ushort)(memory.Length);
                     byteBlock = new ByteBlock(dataLen + 2);
-                    lenBytes = TouchSocketBitConverter.Default.GetBytes(dataLen);
+                    lenBytes = new byte[2];
+                    TouchSocketBitConverter.Default.WriteBytes(lenBytes, dataLen);
                     break;
                 }
             case FixedHeaderType.Int:
                 {
                     var dataLen = memory.Length;
                     byteBlock = new ByteBlock(dataLen + 4);
-                    lenBytes = TouchSocketBitConverter.Default.GetBytes(dataLen);
+                    lenBytes = new byte[4];
+                    TouchSocketBitConverter.Default.WriteBytes(lenBytes, dataLen);
                     break;
                 }
             default: throw new InvalidEnumArgumentException(TouchSocketCoreResource.InvalidParameter.Format(nameof(this.FixedHeaderType)));
@@ -149,7 +153,7 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
         {
             byteBlock.Write(lenBytes);
             byteBlock.Write(memory.Span);
-            await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(byteBlock.Memory,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         finally
         {
@@ -158,6 +162,7 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
     }
 
     /// <inheritdoc/>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     protected override async Task PreviewSendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         if (transferBytes.Count == 0)
@@ -174,7 +179,7 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
         this.ThrowIfLengthValidationFailed(length);
 
         ByteBlock byteBlock;
-        byte[] lenBytes;
+        Span<byte> lenBytes;
 
         switch (this.FixedHeaderType)
         {
@@ -189,13 +194,15 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
                 {
                     var dataLen = (ushort)length;
                     byteBlock = new ByteBlock(dataLen + 2);
-                    lenBytes = TouchSocketBitConverter.Default.GetBytes(dataLen);
+                    lenBytes = new byte[2];
+                    TouchSocketBitConverter.Default.WriteBytes(lenBytes, dataLen);
                     break;
                 }
             case FixedHeaderType.Int:
                 {
                     byteBlock = new ByteBlock(length + 4);
-                    lenBytes = TouchSocketBitConverter.Default.GetBytes(length);
+                    lenBytes = new byte[4];
+                    TouchSocketBitConverter.Default.WriteBytes(lenBytes, length);
                     break;
                 }
             default: throw new InvalidEnumArgumentException(TouchSocketCoreResource.InvalidParameter.Format(nameof(this.FixedHeaderType)));
@@ -208,7 +215,7 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
             {
                 byteBlock.Write(new ReadOnlySpan<byte>(item.Array, item.Offset, item.Count));
             }
-            await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(byteBlock.Memory,CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         finally
         {
@@ -287,11 +294,11 @@ public class FixedHeaderPackageAdapter : SingleStreamDataHandlingAdapter
                     break;
 
                 case FixedHeaderType.Ushort:
-                    length = TouchSocketBitConverter.Default.ToUInt16(dataBuffer, index);
+                    length = TouchSocketBitConverter.Default.To<ushort>(new ReadOnlySpan<byte>(dataBuffer, index,2));
                     break;
 
                 case FixedHeaderType.Int:
-                    length = TouchSocketBitConverter.Default.ToInt32(dataBuffer, index);
+                    length = TouchSocketBitConverter.Default.To<int>(new ReadOnlySpan<byte>(dataBuffer, index, 4));
                     break;
             }
 

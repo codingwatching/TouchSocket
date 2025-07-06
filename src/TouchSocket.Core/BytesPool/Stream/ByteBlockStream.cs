@@ -21,7 +21,7 @@ namespace TouchSocket.Core;
 /// 字节块流
 /// </summary>
 [DebuggerDisplay("Len={Length},Pos={Position},Capacity={Capacity}")]
-public sealed partial class ByteBlockStream : Stream
+internal sealed partial class ByteBlockStream : Stream
 {
     private readonly ByteBlock m_byteBlock;
     private readonly bool m_releaseTogether;
@@ -141,7 +141,22 @@ public sealed partial class ByteBlockStream : Stream
     public override long Seek(long offset, SeekOrigin origin)
     {
         this.ThrowIfDisposed();
-        return this.m_byteBlock.Seek((int)offset, origin);
+        switch (origin)
+        {
+            case SeekOrigin.Begin:
+                this.m_byteBlock.Position = (int)offset;
+                break;
+
+            case SeekOrigin.Current:
+                this.m_byteBlock.Position += (int)offset;
+                break;
+
+            case SeekOrigin.End:
+                this.m_byteBlock.Position = (int)(this.Length + offset);
+                break;
+        }
+
+        return this.m_byteBlock.Position;
     }
 
     /// <summary>

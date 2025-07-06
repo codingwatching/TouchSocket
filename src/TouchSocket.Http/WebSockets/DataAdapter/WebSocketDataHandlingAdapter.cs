@@ -10,6 +10,7 @@
 //  感谢您的下载和使用
 //------------------------------------------------------------------------------
 
+using System;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 
@@ -65,7 +66,7 @@ public sealed class WebSocketDataHandlingAdapter : SingleStreamDataHandlingAdapt
                 offset = index;
                 return FilterResult.Cache;
             }
-            payloadLength = TouchSocketBitConverter.BigEndian.ToUInt16(dataBuffer, ++offset);
+            payloadLength = TouchSocketBitConverter.BigEndian.To<ushort>(new System.ReadOnlySpan<byte>(dataBuffer, ++offset,2));
             offset += 2;
         }
         else if (payloadLength == 127)
@@ -77,7 +78,7 @@ public sealed class WebSocketDataHandlingAdapter : SingleStreamDataHandlingAdapt
                 offset = index;
                 return FilterResult.GoOn;
             }
-            payloadLength = (int)TouchSocketBitConverter.BigEndian.ToUInt64(dataBuffer, ++offset);
+            payloadLength = (int)TouchSocketBitConverter.BigEndian.To<ulong>(new System.ReadOnlySpan<byte>(dataBuffer, ++offset, 8));
             offset += 8;
         }
 
@@ -121,7 +122,7 @@ public sealed class WebSocketDataHandlingAdapter : SingleStreamDataHandlingAdapt
     /// 当接收到数据时处理数据
     /// </summary>
     /// <param name="byteBlock">数据流</param>
-    protected override async Task PreviewReceivedAsync(ByteBlock byteBlock)
+    protected override async Task PreviewReceivedAsync(IByteBlockReader byteBlock)
     {
         var buffer = byteBlock.Memory.GetArray().Array;
         var r = byteBlock.Length;

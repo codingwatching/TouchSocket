@@ -16,10 +16,10 @@ using TouchSocket.Core;
 namespace TouchSocket.Mqtt;
 
 /// <summary>
-/// 读取MQTT v5属性的类。
+/// 读取Mqtt v5属性的类。
 /// </summary>
 /// <typeparam name="TByteBlock">实现IByteBlock接口的类型。</typeparam>
-public readonly ref struct MqttV5PropertiesReader<TByteBlock> where TByteBlock : IByteBlock
+public readonly ref struct MqttV5PropertiesReader<TByteBlock> where TByteBlock : IByteBlockReader
 {
     private readonly int m_endPosition;
 
@@ -326,7 +326,7 @@ public readonly ref struct MqttV5PropertiesReader<TByteBlock> where TByteBlock :
 
 
 ///// <summary>
-///// 读取MQTT v5属性的类。
+///// 读取Mqtt v5属性的类。
 ///// </summary>
 ///// <typeparam name="TByteBlock">实现IByteBlock接口的类型。</typeparam>
 //public readonly struct MqttV5PropertiesReader<TByteBlock> where TByteBlock : IByteBlock

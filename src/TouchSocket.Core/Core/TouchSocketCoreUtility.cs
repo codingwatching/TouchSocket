@@ -50,14 +50,6 @@ public class TouchSocketCoreUtility
     /// </summary>
     public const string Empty = "";
 
-    /// <summary>
-    /// 0长度字节数组
-    /// </summary>
-#if NET45
-    public static readonly byte[] ZeroBytes = new byte[0];
-#else
-    public static readonly byte[] ZeroBytes = Array.Empty<byte>();
-#endif
     private static int s_seed;
 
     /// <summary>

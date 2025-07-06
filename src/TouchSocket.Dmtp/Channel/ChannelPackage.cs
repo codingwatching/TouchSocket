@@ -37,22 +37,22 @@ internal class ChannelPackage : MsgRouterPackage
         return this.Data == null ? 1024 : this.Data.Length + 1024;
     }
 
-    public override void PackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void PackageBody<TWriter>(ref TWriter wirter)
     {
-        base.PackageBody(ref byteBlock);
-        byteBlock.WriteBoolean(this.RunNow);
-        byteBlock.WriteByte((byte)this.DataType);
-        byteBlock.WriteInt32(this.ChannelId);
+        base.PackageBody(ref wirter);
+        wirter.WriteBoolean(this.RunNow);
+        wirter.WriteByte((byte)this.DataType);
+        wirter.WriteInt32(this.ChannelId);
 
-        byteBlock.WriteByteBlock(this.Data);
+        wirter.WriteByteBlock(this.Data);
     }
 
-    public override void UnpackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void UnpackageBody<TReader>(ref TReader reader)
     {
-        base.UnpackageBody(ref byteBlock);
-        this.RunNow = byteBlock.ReadBoolean();
-        this.DataType = (ChannelDataType)byteBlock.ReadByte();
-        this.ChannelId = byteBlock.ReadInt32();
-        this.Data = byteBlock.ReadByteBlock();
+        base.UnpackageBody(ref reader);
+        this.RunNow = reader.ReadBoolean();
+        this.DataType = (ChannelDataType)reader.ReadByte();
+        this.ChannelId = reader.ReadInt32();
+        this.Data = reader.ReadByteBlock();
     }
 }

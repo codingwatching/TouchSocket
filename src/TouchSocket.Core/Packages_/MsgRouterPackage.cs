@@ -23,14 +23,14 @@ public class MsgRouterPackage : RouterPackage
     public string Message { get; set; }
 
     /// <inheritdoc/>
-    public override void PackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void PackageBody<TWriter>(ref TWriter writer)
     {
-        byteBlock.WriteString(this.Message, FixedHeaderType.Ushort);
+        writer.WriteString(this.Message, FixedHeaderType.Ushort);
     }
 
     /// <inheritdoc/>
-    public override void UnpackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void UnpackageBody<TReader>(ref TReader reader)
     {
-        this.Message = byteBlock.ReadString(FixedHeaderType.Ushort);
+        this.Message = reader.ReadString(FixedHeaderType.Ushort);
     }
 }

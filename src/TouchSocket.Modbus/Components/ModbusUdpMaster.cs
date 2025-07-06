@@ -44,7 +44,7 @@ public class ModbusUdpMaster : UdpSessionBase, IModbusUdpMaster
         {
             var modbusTcpRequest = new ModbusTcpRequest((ushort)sign, request);
 
-            await this.ProtectedSendAsync(modbusTcpRequest).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.ProtectedSendAsync(modbusTcpRequest, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             waitData.SetCancellationToken(token);
             var waitDataStatus = await waitData.WaitAsync(millisecondsTimeout).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             waitDataStatus.ThrowIfNotRunning();

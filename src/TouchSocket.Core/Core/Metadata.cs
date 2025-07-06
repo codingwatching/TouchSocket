@@ -51,26 +51,37 @@ public sealed class Metadata : Dictionary<string, string>, IPackage
         return this;
     }
 
+
     /// <inheritdoc/>
-    public void Package<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public void Package<TWriter>(ref TWriter writer) 
+        where TWriter : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
-        byteBlock.WriteInt32(this.Count);
+        writer.WriteInt32(this.Count);
         foreach (var item in this)
         {
-            byteBlock.WriteString(item.Key, FixedHeaderType.Byte);
-            byteBlock.WriteString(item.Value, FixedHeaderType.Byte);
+            writer.WriteString(item.Key, FixedHeaderType.Byte);
+            writer.WriteString(item.Value, FixedHeaderType.Byte);
         }
     }
 
     /// <inheritdoc/>
-    public void Unpackage<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public void Unpackage<TReader>(ref TReader reader) 
+        where TReader : IByteBlockReader
+#if AllowsRefStruct
+, allows ref struct
+#endif
     {
-        var count = byteBlock.ReadInt32();
+        var count = reader.ReadInt32();
         for (var i = 0; i < count; i++)
         {
-            var key = byteBlock.ReadString(FixedHeaderType.Byte);
-            var value = byteBlock.ReadString(FixedHeaderType.Byte);
+            var key = reader.ReadString(FixedHeaderType.Byte);
+            var value = reader.ReadString(FixedHeaderType.Byte);
             this.Add(key, value);
         }
     }
+
+
 }

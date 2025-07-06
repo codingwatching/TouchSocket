@@ -13,6 +13,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.ExceptionServices;
@@ -29,43 +30,6 @@ namespace TouchSocket.Sockets;
 internal sealed class TcpCore : DisposableObject
 {
     /// <summary>
-    /// 最小缓存尺寸
-    /// </summary>
-    public int MinBufferSize { get; set; } = 1024 * 10;
-
-    /// <summary>
-    /// 最大缓存尺寸
-    /// </summary>
-    public int MaxBufferSize { get; set; } = 1024 * 512;
-
-    #region 字段
-
-    private const int BatchSize = 100;
-    private const int MaxMemoryLength = 1024;
-    private readonly Task m_sendTask;
-    private int m_receiveBufferSize = 1024 * 10;
-    private ValueCounter m_receiveCounter;
-    private int m_sendBufferSize = 1024 * 10;
-    private ValueCounter m_sentCounter;
-    private Socket m_socket;
-    private SslStream m_sslStream;
-    private bool m_useSsl;
-    private readonly SemaphoreSlim m_semaphoreForSend = new SemaphoreSlim(1, 1);
-    private readonly SocketReceiver m_socketReceiver = new SocketReceiver();
-    private readonly SocketSender m_socketSender = new SocketSender();
-    private readonly AsyncResetEvent m_asyncResetEventForTask = new AsyncResetEvent(false, true);
-    private readonly AsyncResetEvent m_asyncResetEventForSend = new AsyncResetEvent(true, false);
-    private readonly ConcurrentQueue<SendSegment> m_sendingBytes = new ConcurrentQueue<SendSegment>();
-    private readonly SemaphoreSlim m_semaphoreSlimForMax = new SemaphoreSlim(BatchSize);
-    private ExceptionDispatchInfo m_exceptionDispatchInfo;
-    private short m_version;
-    private bool m_noDelay;
-    private readonly SocketOperationResult m_result = new SocketOperationResult();
-    private readonly CancellationTokenSource m_cancellationTokenSource = new();
-    private readonly CancellationToken m_cancellationToken;
-    #endregion 字段
-
-    /// <summary>
     /// Tcp核心
     /// </summary>
     public TcpCore()
@@ -81,9 +45,8 @@ internal sealed class TcpCore : DisposableObject
             Period = TimeSpan.FromSeconds(1),
             OnPeriod = this.OnSendPeriod
         };
-        this.m_cancellationToken = this.m_cancellationTokenSource.Token;
-        this.m_sendTask = Task.Run(this.TaskSend);
-        this.m_sendTask.FireAndForget();
+
+        _ = EasyTask.SafeRun(this.TaskSend, this.m_cancellationTokenSource.Token);
     }
 
     /// <summary>
@@ -94,21 +57,42 @@ internal sealed class TcpCore : DisposableObject
         this.Dispose(disposing: false);
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        base.Dispose(disposing);
-        if (disposing)
-        {
-            this.m_socketReceiver.SafeDispose();
-            this.m_socketSender.SafeDispose();
-            this.m_semaphoreForSend.SafeDispose();
-            this.m_asyncResetEventForTask.SafeDispose();
-            this.m_asyncResetEventForSend.SafeDispose();
-            this.m_semaphoreSlimForMax.SafeDispose();
-            this.m_cancellationTokenSource.Cancel();
-            this.m_cancellationTokenSource.SafeDispose();
-        }
-    }
+    /// <summary>
+    /// 最大缓存尺寸
+    /// </summary>
+    public int MaxBufferSize { get; set; } = 1024 * 512;
+
+    /// <summary>
+    /// 最小缓存尺寸
+    /// </summary>
+    public int MinBufferSize { get; set; } = 1024 * 10;
+
+    #region 字段
+
+    private const int BatchSize = 50;
+    private const int MaxMemoryLength = 1024;
+    private readonly ConcurrentQueue<SendSegment> m_asyncQueueForSend = new();
+    private readonly AsyncManualResetEvent m_asyncResetEventForSend = new(true);
+    private readonly AsyncAutoResetEvent m_asyncResetEventForTask = new();
+    private readonly CancellationTokenSource m_cancellationTokenSource = new();
+    private readonly SemaphoreSlim m_semaphoreForSend = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim m_semaphoreSlimForMax = new SemaphoreSlim(BatchSize, BatchSize);
+    private readonly SocketReceiver m_socketReceiver = new SocketReceiver();
+    private readonly SocketSender m_socketSender = new SocketSender();
+    private ExceptionDispatchInfo m_exceptionDispatchInfo;
+    private bool m_noDelay;
+    private int m_receiveBufferSize = 1024 * 10;
+    private ValueCounter m_receiveCounter;
+    private int m_sendBufferSize = 1024 * 10;
+    private ValueCounter m_sentCounter;
+    private Socket m_socket;
+    private SslStream m_sslStream;
+    private bool m_useSsl;
+    private short m_version;
+
+    #endregion 字段
+
+    public bool NoDelay => this.m_noDelay;
 
     /// <summary>
     /// 接收缓存池,运行时的值会根据流速自动调整
@@ -120,12 +104,12 @@ internal sealed class TcpCore : DisposableObject
     /// </summary>
     public ValueCounter ReceiveCounter => this.m_receiveCounter;
 
+    public SemaphoreSlim SemaphoreForSend => this.m_semaphoreForSend;
+
     /// <summary>
     /// 发送缓存池,运行时的值会根据流速自动调整
     /// </summary>
     public int SendBufferSize => Math.Min(Math.Max(this.m_sendBufferSize, this.MinBufferSize), this.MaxBufferSize);
-
-    public bool NoDelay => this.m_noDelay;
 
     /// <summary>
     /// 发送计数器
@@ -146,27 +130,6 @@ internal sealed class TcpCore : DisposableObject
     /// 是否启用了Ssl
     /// </summary>
     public bool UseSsl => this.m_useSsl;
-
-    public async Task<Result> ShutdownAsync(SocketShutdown how)
-    {
-        //主要等待发送队列任务完成
-        await this.m_semaphoreForSend.WaitAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-        try
-        {
-            await this.m_asyncResetEventForSend.WaitOneAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-            this.m_socket.Shutdown(how);
-
-            return Result.Success;
-        }
-        catch (Exception ex)
-        {
-            return Result.FromException(ex);
-        }
-        finally
-        {
-            this.m_semaphoreForSend.Release();
-        }
-    }
 
     /// <summary>
     /// 以Ssl服务器模式授权
@@ -216,29 +179,31 @@ internal sealed class TcpCore : DisposableObject
         this.m_useSsl = true;
     }
 
-    public async Task<SocketOperationResult> ReadAsync(Memory<byte> memory)
+    #region Receive
+    public ValueTask<TcpOperationResult> ReceiveAsync(in Memory<byte> memory, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         if (this.m_useSsl)
         {
-#if NET6_0_OR_GREATER
-
-            var r = await this.m_sslStream.ReadAsync(memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-
-#else
-            var bytes = memory.GetArray();
-            var r = await Task<int>.Factory.FromAsync(this.m_sslStream.BeginRead, this.m_sslStream.EndRead, bytes.Array, 0, bytes.Count, default).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-#endif
-            this.m_result.BytesTransferred = r;
-            this.m_receiveCounter.Increment(r);
-            return this.m_result;
+            return this.SslReceiveAsync(memory, token);
         }
-        else
-        {
-            var result = await this.m_socketReceiver.ReceiveAsync(this.m_socket, memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-            this.m_receiveCounter.Increment(result.BytesTransferred);
-            return result;
-        }
+        return this.m_socketReceiver.ReceiveAsync(this.m_socket, memory);
     }
+
+    public async ValueTask<TcpOperationResult> SslReceiveAsync(Memory<byte> memory, CancellationToken token)
+    {
+        var r = await this.m_sslStream.ReadAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        this.m_receiveCounter.Increment(r);
+
+        return new TcpOperationResult(r, SocketError.Success);
+    }
+
+    public bool ReceiveIncrement(long value)
+    {
+        return this.m_receiveCounter.Increment(value);
+    }
+    #endregion
+
 
     /// <summary>
     /// 重置环境，并设置新的<see cref="Socket"/>。
@@ -265,7 +230,6 @@ internal sealed class TcpCore : DisposableObject
         this.m_version++;
         this.m_exceptionDispatchInfo = null;
         this.m_useSsl = false;
-        this.m_socketSender.Reset();
         this.m_receiveCounter.Reset();
         this.m_sentCounter.Reset();
         this.m_sslStream?.Dispose();
@@ -273,6 +237,46 @@ internal sealed class TcpCore : DisposableObject
         this.m_socket = null;
         this.m_receiveBufferSize = this.MinBufferSize;
         this.m_sendBufferSize = this.MinBufferSize;
+    }
+
+    public async Task<Result> ShutdownAsync(SocketShutdown how)
+    {
+        //主要等待发送队列任务完成
+        await this.m_semaphoreForSend.WaitAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        try
+        {
+            await this.m_asyncResetEventForSend.WaitOneAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            this.m_socket.Shutdown(how);
+
+            return Result.Success;
+        }
+        catch (Exception ex)
+        {
+            return Result.FromException(ex);
+        }
+        finally
+        {
+            this.m_semaphoreForSend.Release();
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+        {
+            this.m_socketReceiver.SafeDispose();
+            this.m_socketSender.SafeDispose();
+
+            this.m_semaphoreForSend.SafeDispose();
+            this.m_semaphoreSlimForMax.SafeDispose();
+
+            this.m_asyncResetEventForSend.Set();
+            this.m_asyncResetEventForTask.SetAll();
+
+            this.m_cancellationTokenSource.SafeCancel();
+            this.m_cancellationTokenSource.SafeDispose();
+        }
     }
 
     #region Send
@@ -283,49 +287,16 @@ internal sealed class TcpCore : DisposableObject
     /// 内部会根据是否启用Ssl，进行直接发送，还是Ssl发送。
     /// </para>
     /// </summary>
-    /// <param name="memory"></param>
+    /// <param name="memory">数据</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public async Task SendAsync(ReadOnlyMemory<byte> memory)
+    public async Task SendAsync(ReadOnlyMemory<byte> memory, CancellationToken token)
     {
-        await this.m_semaphoreForSend.WaitAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        await this.m_semaphoreForSend.WaitAsync(token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         try
         {
-            // 如果内存长度小于最大长度，且不是无延迟模式
-            if (memory.Length < MaxMemoryLength && !this.NoDelay)
-            {
-                var dispatchInfo = this.m_exceptionDispatchInfo;
-                dispatchInfo?.Throw();
-
-                await this.m_semaphoreSlimForMax.WaitAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-
-                var sendSegment = ArrayPool<byte>.Shared.Rent(memory.Length);
-                //if (!this.m_stores.TryPop(out var sendSegment))
-                //{
-                //    sendSegment = new SendSegment()
-                //    {
-                //        Date = new byte[MaxMemoryLength]
-                //    };
-                //}
-
-                var segment = memory.GetArray();
-
-                Array.Copy(segment.Array, segment.Offset, sendSegment, 0, segment.Count);
-
-
-                this.m_sendingBytes.Enqueue(new SendSegment(sendSegment, memory.Length, this.m_version));
-                //var byteBlock = new ValueByteBlock(memory.Length);
-                //byteBlock.Write(memory.Span);
-                //this.m_ints.Enqueue(byteBlock);
-
-                this.m_asyncResetEventForSend.Reset();
-
-                this.m_asyncResetEventForTask.Set();
-                return;
-            }
-
-            await this.m_asyncResetEventForSend.WaitOneAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-            await this.PrivateSendAsync(memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.UnsafeSendAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         finally
         {
@@ -333,109 +304,208 @@ internal sealed class TcpCore : DisposableObject
         }
     }
 
-    private async Task TaskSend()
+    public async Task UnsafeSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token)
     {
-        var valuesToProcess = new SendSegment[BatchSize];
-
-        while (!this.m_cancellationToken.IsCancellationRequested)
+        if (this.NoDelay)
         {
-            // 重置计数器和数组内容
-            var count = 0;
+            await this.PrivateSendAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            return;
+        }
+        if (memory.Length < MaxMemoryLength)
+        {
+            var dispatchInfo = this.m_exceptionDispatchInfo;
+            dispatchInfo?.Throw();
 
+            await this.m_semaphoreSlimForMax.WaitAsync(token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+
+            var sendSegment = ArrayPool<byte>.Shared.Rent(memory.Length);
+
+            memory.CopyTo(new Memory<byte>(sendSegment, 0, memory.Length));
+
+            this.m_asyncQueueForSend.Enqueue(new SendSegment(sendSegment, memory.Length, this.m_version));
+            this.m_asyncResetEventForSend.Reset();
+
+            this.m_asyncResetEventForTask.Set();
+            return;
+        }
+
+        await this.m_asyncResetEventForSend.WaitOneAsync(token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        await this.PrivateSendAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+    }
+
+    public Task UnsafeSendAsync(in ReadOnlySequence<byte> buffer, CancellationToken token)
+    {
+        return this.PrivateSendAsync(buffer, token);
+    }
+
+    private async Task PrivateSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token)
+    {
+        var length = memory.Length;
+        if (this.m_useSsl)
+        {
+            await this.SslStream.WriteAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        }
+        else
+        {
+            var offset = 0;
+            while (length > 0)
+            {
+                token.ThrowIfCancellationRequested();
+
+                try
+                {
+                    var result = await this.m_socketSender.SendAsync(this.m_socket, memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    if (result.SocketError != SocketError.Success)
+                    {
+                        throw new SocketException((int)result.SocketError);
+                    }
+                    if (result.BytesTransferred == 0 && length > 0)
+                    {
+                        ThrowHelper.ThrowException(TouchSocketResource.IncompleteDataTransmission);
+                    }
+                    offset += result.BytesTransferred;
+                    length -= result.BytesTransferred;
+                }
+                finally
+                {
+                    this.m_socketSender.Reset();
+                }
+            }
+        }
+        this.m_sentCounter.Increment(length);
+    }
+
+    private async Task PrivateSendAsync(List<ArraySegment<byte>> buffer, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var length = 0;
+        if (this.m_useSsl)
+        {
+            foreach (var memory in buffer)
+            {
+                await this.SslStream.WriteAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                length += memory.Count;
+            }
+        }
+        else
+        {
+            try
+            {
+                var result = await this.m_socketSender.SendAsync(this.m_socket, buffer).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                if (result.SocketError != SocketError.Success)
+                {
+                    throw new SocketException((int)result.SocketError);
+                }
+
+                foreach (var memory in buffer)
+                {
+                    length += memory.Count;
+                }
+
+                if (result.BytesTransferred != length)
+                {
+                    ThrowHelper.ThrowException(TouchSocketResource.IncompleteDataTransmission);
+                }
+            }
+            finally
+            {
+                this.m_socketSender.Reset();
+            }
+        }
+        this.m_sentCounter.Increment(length);
+    }
+
+    private async Task PrivateSendAsync(ReadOnlySequence<byte> buffer, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var length = 0;
+        if (this.m_useSsl)
+        {
+            foreach (var memory in buffer)
+            {
+                await this.SslStream.WriteAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                length += memory.Length;
+            }
+        }
+        else
+        {
+            try
+            {
+                var result = await this.m_socketSender.SendAsync(this.m_socket, buffer).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                if (result.SocketError != SocketError.Success)
+                {
+                    throw new SocketException((int)result.SocketError);
+                }
+
+                foreach (var memory in buffer)
+                {
+                    length += memory.Length;
+                }
+
+                if (result.BytesTransferred != length)
+                {
+                    ThrowHelper.ThrowException(TouchSocketResource.IncompleteDataTransmission);
+                }
+            }
+            finally
+            {
+                this.m_socketSender.Reset();
+            }
+        }
+        this.m_sentCounter.Increment(length);
+    }
+
+    private async Task TaskSend(CancellationToken token)
+    {
+        //var valuesToProcess = new SendSegment[BatchSize];
+        var buffer = new List<ArraySegment<byte>>(BatchSize);
+        while (!token.IsCancellationRequested)
+        {
             // 尝试填充数组
-            while (count < BatchSize && this.m_sendingBytes.TryDequeue(out var value))
+            while (buffer.Count < BatchSize && this.m_asyncQueueForSend.TryDequeue(out var value))
             {
                 if (value.version == this.m_version)
                 {
-                    valuesToProcess[count++] = value;
+                    buffer.Add(new ArraySegment<byte>(value.Data, 0, value.Length));
                 }
                 this.m_semaphoreSlimForMax.Release();
             }
 
-            if (this.m_cancellationToken.IsCancellationRequested)
+            if (token.IsCancellationRequested)
             {
                 return;
             }
 
             // 如果有元素需要处理，并且没有异常
-            if (count > 0)
+            if (buffer.Count > 0 && this.m_exceptionDispatchInfo == null)
             {
-                //Debug.WriteLine(count.ToString());
-                if (this.m_exceptionDispatchInfo == null)
+                try
                 {
-                    using (var byteBlock = new ValueByteBlock(count * MaxMemoryLength))
-                    {
-                        for (var i = 0; i < count; i++)
-                        {
-                            var value = valuesToProcess[i];
-
-                            byteBlock.Write(new ReadOnlySpan<byte>(value.Data, 0, value.Length));
-
-                            ArrayPool<byte>.Shared.Return(value.Data);
-                            //value.Dispose();
-                        }
-
-                        try
-                        {
-                            await this.PrivateSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-                        }
-                        catch (Exception ex)
-                        {
-                            this.m_exceptionDispatchInfo = ExceptionDispatchInfo.Capture(ex);
-                            this.m_sendingBytes.Clear();
-
-                        }
-                    }
+                    await this.PrivateSendAsync(buffer, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                 }
-
-                Array.Clear(valuesToProcess, 0, count);
+                catch (Exception ex)
+                {
+                    this.m_exceptionDispatchInfo = ExceptionDispatchInfo.Capture(ex);
+                    this.m_asyncQueueForSend.Clear();
+                }
+                finally
+                {
+                    foreach (var item in buffer)
+                    {
+                        ArrayPool<byte>.Shared.Return(item.Array);
+                    }
+                    buffer.Clear();
+                }
             }
             else
             {
                 //Debug.WriteLine("Pause");
                 // 队列为空，设置事件并等待
                 this.m_asyncResetEventForSend.Set();
-                await this.m_asyncResetEventForTask.WaitOneAsync(this.m_cancellationToken).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+
+                await this.m_asyncResetEventForTask.WaitOneAsync(token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             }
         }
-    }
-
-    private async Task PrivateSendAsync(ReadOnlyMemory<byte> memory)
-    {
-        var length = memory.Length;
-#if NET6_0_OR_GREATER
-        if (this.UseSsl)
-        {
-            await this.SslStream.WriteAsync(memory, this.m_cancellationToken).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-        }
-#else
-        if (this.m_useSsl)
-        {
-            var segment = memory.GetArray();
-            await this.SslStream.WriteAsync(segment.Array, segment.Offset, segment.Count, this.m_cancellationToken).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-        }
-#endif
-        else
-        {
-            var offset = 0;
-            while (length > 0 && !this.m_cancellationToken.IsCancellationRequested)
-            {
-                var result = await this.m_socketSender.SendAsync(this.m_socket, memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-                if (result.SocketError != null)
-                {
-                    throw result.SocketError;
-                }
-                if (result.BytesTransferred == 0 && length > 0)
-                {
-                    throw new Exception(TouchSocketResource.IncompleteDataTransmission);
-                }
-                offset += result.BytesTransferred;
-                length -= result.BytesTransferred;
-            }
-
-            //this.m_socketSender.Reset();
-        }
-        this.m_sentCounter.Increment(length);
     }
 
     #endregion Send
@@ -450,6 +520,8 @@ internal sealed class TcpCore : DisposableObject
         this.m_sendBufferSize = Math.Max(TouchSocketCoreUtility.HitBufferLength(value), this.MinBufferSize);
     }
 
+    #region Class
+
     private struct SendSegment
     {
         public byte[] Data;
@@ -463,4 +535,6 @@ internal sealed class TcpCore : DisposableObject
             this.version = version;
         }
     }
+
+    #endregion Class
 }

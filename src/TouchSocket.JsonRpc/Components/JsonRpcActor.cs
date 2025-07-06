@@ -14,6 +14,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 using TouchSocket.Rpc;
@@ -58,7 +59,7 @@ public sealed class JsonRpcActor : DisposableObject, IJsonRpcClient
     /// <summary>
     /// 获取或设置发送动作。
     /// </summary>
-    public Func<ReadOnlyMemory<byte>, Task> SendAction { get; set; }
+    public Func<ReadOnlyMemory<byte>,CancellationToken, Task> SendAction { get; set; }
 
     /// <summary>
     /// 获取或设置序列化转换器。
@@ -164,7 +165,7 @@ public sealed class JsonRpcActor : DisposableObject, IJsonRpcClient
             {
                 var str = this.BuildJsonRpcRequest(jsonRpcRequest);
                 byteBlock.WriteNormalString(str, this.Encoding);
-                await this.SendAction(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                await this.SendAction(byteBlock.Memory,CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             }
 
             switch (invokeOption.FeedbackType)
@@ -411,7 +412,7 @@ public sealed class JsonRpcActor : DisposableObject, IJsonRpcClient
             using (var byteBlock = new ByteBlock(1024 * 64))
             {
                 byteBlock.WriteNormalString(str, this.Encoding);
-                await this.SendAction(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                await this.SendAction(byteBlock.Memory,CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             }
         }
         catch (Exception ex)

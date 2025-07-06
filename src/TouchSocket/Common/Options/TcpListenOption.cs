@@ -48,7 +48,7 @@ public class TcpListenOption
     /// <summary>
     /// 禁用延迟发送
     /// </summary>
-    public bool? NoDelay { get; set; }
+    public bool? NoDelay { get; set; } = true;
 
     /// <summary>
     /// 是否使用ssl加密

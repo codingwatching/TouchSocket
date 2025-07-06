@@ -78,6 +78,7 @@ public static class SenderExtension
     /// <param name="bytesList">待发送的字节数据列表。</param>
     /// <typeparam name="TClient">客户端对象类型，必须实现<see cref="IClientSender"/>接口。</typeparam>
     [AsyncToSyncWarning]
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     public static void Send<TClient>(this TClient client, IList<ArraySegment<byte>> bytesList) where TClient : IClientSender
     {
         // 调用客户端对象的SendAsync方法发送数据，并忽略返回结果。

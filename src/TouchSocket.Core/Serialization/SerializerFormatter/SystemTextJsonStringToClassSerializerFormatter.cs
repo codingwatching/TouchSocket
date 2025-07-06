@@ -44,7 +44,7 @@ public class SystemTextJsonStringToClassSerializerFormatter<TState> : ISerialize
     /// <param name="source">源字符串。</param>
     /// <param name="targetType">目标类型。</param>
     /// <param name="target">反序列化后的对象。</param>
-    /// <returns>如果反序列化成功，则为true；否则为false。</returns>
+    /// <returns>如果反序列化成功，则为<see langword="true"/>；否则为<see langword="false"/>。</returns>
     public bool TryDeserialize(TState state, in string source, Type targetType, out object target)
     {
         try
@@ -70,7 +70,7 @@ public class SystemTextJsonStringToClassSerializerFormatter<TState> : ISerialize
     /// <param name="state">状态对象。</param>
     /// <param name="target">要序列化的对象。</param>
     /// <param name="source">序列化后的字符串。</param>
-    /// <returns>如果序列化成功，则为true；否则为false。</returns>
+    /// <returns>如果序列化成功，则为<see langword="true"/>；否则为<see langword="false"/>。</returns>
     public bool TrySerialize(TState state, in object target, out string source)
     {
         try

@@ -15,7 +15,7 @@ using System;
 namespace TouchSocket.Core;
 
 /// <summary>
-/// 大数据用户自定义固定包头解析器，使用该适配器时，接收方收到的数据中，<see cref="ByteBlock"/>将为null，同时<see cref="IRequestInfo"/>将实现为TFixedHeaderRequestInfo。
+/// 大数据用户自定义固定包头解析器，使用该适配器时，接收方收到的数据中，<see cref="ByteBlock"/>将为<see langword="null"/>，同时<see cref="IRequestInfo"/>将实现为TFixedHeaderRequestInfo。
 /// </summary>
 public abstract class CustomBigUnfixedHeaderDataHandlingAdapter<TFixedHeaderRequestInfo> : CustomDataHandlingAdapter<TFixedHeaderRequestInfo>
     where TFixedHeaderRequestInfo : IBigUnfixedHeaderRequestInfo
@@ -130,7 +130,7 @@ public interface IBigUnfixedHeaderRequestInfo : IRequestInfo
     /// </summary>
     /// <param name="byteBlock"></param>
     /// <returns>是否满足解析包头</returns>
-    bool OnParsingHeader<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock;
+    bool OnParsingHeader<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockReader;
 
     /// <summary>
     /// 当收到数据，由框架封送数据。

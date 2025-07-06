@@ -39,7 +39,7 @@ public static class TouchSocketHttpUtility
     /// </summary>
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
-    public static void AppendAnd<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static void AppendAnd<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockWriter
     {
         byteBlock.Write("&"u8);
     }
@@ -49,7 +49,7 @@ public static class TouchSocketHttpUtility
     /// </summary>
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
-    public static void AppendColon<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static void AppendColon<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockWriter
     {
         byteBlock.Write(":"u8);
     }
@@ -59,7 +59,7 @@ public static class TouchSocketHttpUtility
     /// </summary>
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
-    public static void AppendEqual<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static void AppendEqual<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockWriter
     {
         byteBlock.Write("="u8);
     }
@@ -69,7 +69,7 @@ public static class TouchSocketHttpUtility
     /// </summary>
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
-    public static void AppendHTTP<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static void AppendHTTP<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockWriter
     {
         byteBlock.Write("HTTP"u8);
     }
@@ -79,7 +79,7 @@ public static class TouchSocketHttpUtility
     /// </summary>
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
-    public static void AppendQuestionMark<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static void AppendQuestionMark<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockWriter
     {
         byteBlock.Write("?"u8);
     }
@@ -89,7 +89,7 @@ public static class TouchSocketHttpUtility
     /// </summary>
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
-    public static void AppendRn<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static void AppendRn<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockWriter
     {
         byteBlock.Write("\r\n"u8);
     }
@@ -99,7 +99,7 @@ public static class TouchSocketHttpUtility
     /// </summary>
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
-    public static void AppendSlash<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static void AppendSlash<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockWriter
     {
         byteBlock.Write("/"u8);
     }
@@ -109,7 +109,7 @@ public static class TouchSocketHttpUtility
     /// </summary>
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
-    public static void AppendSpace<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static void AppendSpace<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockWriter
     {
         byteBlock.Write(StringExtension.DefaultSpaceUtf8Span);
     }
@@ -120,7 +120,7 @@ public static class TouchSocketHttpUtility
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
     /// <param name="value">要追加的字符串。</param>
-    public static void AppendUtf8String<TByteBlock>(ref TByteBlock byteBlock, string value) where TByteBlock : IByteBlock
+    public static void AppendUtf8String<TByteBlock>(ref TByteBlock byteBlock, string value) where TByteBlock : IByteBlockWriter
     {
         byteBlock.WriteNormalString(value, Encoding.UTF8);
     }
@@ -131,7 +131,7 @@ public static class TouchSocketHttpUtility
     /// <typeparam name="TByteBlock">实现了 <see cref="IByteBlock"/> 的类型。</typeparam>
     /// <param name="byteBlock">字节块实例。</param>
     /// <param name="value">要追加的整数值。</param>
-    public static void AppendHex<TByteBlock>(ref TByteBlock byteBlock, int value) where TByteBlock : IByteBlock
+    public static void AppendHex<TByteBlock>(ref TByteBlock byteBlock, int value) where TByteBlock : IByteBlockWriter
     {
         AppendUtf8String(ref byteBlock, $"{value:X}");
     }

@@ -11,6 +11,9 @@
 //------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.CompilerServices;
 
 namespace TouchSocket.Core;
 
@@ -26,18 +29,31 @@ public static class ByteBlockExtension
     /// <returns>一个新的字节块对象。</returns>
     public static ByteBlock AsByteBlock(this in ValueByteBlock valueByteBlock)
     {
-        return new ByteBlock(valueByteBlock);
+        ByteBlock byteBlock= new ByteBlock(valueByteBlock.TotalMemory.Slice(0,valueByteBlock.Length));
+        byteBlock.Position = valueByteBlock.Position;
+        byteBlock.SetLength(valueByteBlock.Length);
+        return byteBlock;
     }
 
     /// <summary>
     /// 将字节块转换为字节块流。
     /// </summary>
     /// <param name="byteBlock">要转换的字节块。</param>
-    /// <param name="releaseTogether">是否在释放字节块时一起释放关联的资源，默认为true。</param>
+    /// <param name="releaseTogether">是否在释放字节块时一起释放关联的资源，默认为<see langword="true"/>。</param>
     /// <returns>一个新的字节块流对象。</returns>
-    public static ByteBlockStream AsStream(this ByteBlock byteBlock, bool releaseTogether = true)
+    public static Stream AsStream(this ByteBlock byteBlock, bool releaseTogether = true)
     {
         return new ByteBlockStream(byteBlock, releaseTogether);
+    }
+
+    public static Stream AsReadStream<TReader>(this TReader reader) where TReader : class, IByteBlockReader
+    {
+        return new ReadOnlyStream(reader);
+    }
+
+    public static Stream AsWriteStream<TWriter>(this TWriter writer) where TWriter : class, IByteBlockWriter
+    {
+        return new WriteOnlyStream(writer);
     }
 
     #region ToArray
@@ -50,7 +66,7 @@ public static class ByteBlockExtension
     /// <param name="offset">起始偏移量。</param>
     /// <param name="length">要转换为数组的长度。</param>
     /// <returns>包含指定长度的【新】字节数组。</returns>
-    public static byte[] ToArray<TByteBlock>(this TByteBlock byteBlock, int offset, int length) where TByteBlock : IByteBlock
+    public static byte[] ToArray<TByteBlock>(this TByteBlock byteBlock, int offset, int length) where TByteBlock : IBytesCore
     {
         return byteBlock.Span.Slice(offset, length).ToArray();
     }
@@ -62,7 +78,7 @@ public static class ByteBlockExtension
     /// <param name="byteBlock">字节块对象。</param>
     /// <param name="offset">起始偏移量。</param>
     /// <returns>从指定偏移量到字节块末尾的【新】字节数组。</returns>
-    public static byte[] ToArray<TByteBlock>(this TByteBlock byteBlock, int offset) where TByteBlock : IByteBlock
+    public static byte[] ToArray<TByteBlock>(this TByteBlock byteBlock, int offset) where TByteBlock : IBytesCore
     {
         return ToArray(byteBlock, offset, byteBlock.Length - offset);
     }
@@ -73,18 +89,18 @@ public static class ByteBlockExtension
     /// <typeparam name="TByteBlock">实现<see cref="IByteBlock"/>接口的字节块类型。</typeparam>
     /// <param name="byteBlock">字节块对象。</param>
     /// <returns>整个字节块的【新】字节数组。</returns>
-    public static byte[] ToArray<TByteBlock>(this TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static byte[] ToArray<TByteBlock>(this TByteBlock byteBlock) where TByteBlock : IBytesCore
     {
         return ToArray(byteBlock, 0, byteBlock.Length);
     }
 
     /// <summary>
-    /// 将指定的字节块从当前位置<see cref="IByteBlock.Position"/>转换为【新】字节数组，直到字节块的末尾。
+    /// 将指定的字节块从当前位置<see cref="IBytesCore.Position"/>转换为【新】字节数组，直到字节块的末尾。
     /// </summary>
     /// <typeparam name="TByteBlock">实现<see cref="IByteBlock"/>接口的字节块类型。</typeparam>
     /// <param name="byteBlock">字节块对象。</param>
     /// <returns>从当前位置到字节块末尾的【新】字节数组。</returns>
-    public static byte[] ToArrayTake<TByteBlock>(this TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static byte[] ToArrayTake<TByteBlock>(this TByteBlock byteBlock) where TByteBlock : IByteBlockReader
     {
         return ToArray(byteBlock, byteBlock.Position, byteBlock.CanReadLength);
     }
@@ -96,7 +112,7 @@ public static class ByteBlockExtension
     /// <param name="byteBlock">字节块对象。</param>
     /// <param name="length">要转换为数组的长度。</param>
     /// <returns>从当前位置开始，指定长度的【新】字节数组。</returns>
-    public static byte[] ToArrayTake<TByteBlock>(this TByteBlock byteBlock, int length) where TByteBlock : IByteBlock
+    public static byte[] ToArrayTake<TByteBlock>(this TByteBlock byteBlock, int length) where TByteBlock : IBytesCore
     {
         return ToArray(byteBlock, byteBlock.Position, length);
     }

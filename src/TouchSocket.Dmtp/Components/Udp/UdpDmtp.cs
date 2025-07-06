@@ -65,9 +65,9 @@ public partial class UdpDmtp : UdpSessionBase, IUdpDmtp
         return await this.PrivateGetUdpDmtpClientAsync(endPoint).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }
 
-    internal Task InternalSendAsync(EndPoint m_endPoint, ReadOnlyMemory<byte> memory)
+    internal Task InternalSendAsync(EndPoint m_endPoint, ReadOnlyMemory<byte> memory, CancellationToken token = default)
     {
-        return this.ProtectedSendAsync(m_endPoint, memory);
+        return this.ProtectedSendAsync(m_endPoint, memory,token);
     }
 
     /// <inheritdoc/>

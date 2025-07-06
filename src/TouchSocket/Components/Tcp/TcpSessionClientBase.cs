@@ -49,10 +49,15 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
         this.Protocol = Protocol.Tcp;
     }
 
+    public TcpSessionClientBase(bool customReceive): this()
+    {
+        this.m_customReceive = customReceive;
+    }
+
     #region 变量
 
     private readonly Lock m_lockForAbort = new Lock();
-    private Task m_beginReceiveTask;
+    private Task m_receiveTask;
     private SingleStreamDataHandlingAdapter m_dataHandlingAdapter;
     private string m_id;
     private string m_iP;
@@ -74,7 +79,9 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     private Func<TcpSessionClientBase, bool> m_tryAddAction;
     private TryOutEventHandler<TcpSessionClientBase> m_tryGet;
     private TryOutEventHandler<TcpSessionClientBase> m_tryRemoveAction;
-
+    private readonly bool m_customReceive;
+    private readonly CancellationTokenSource m_tokenSourceForOnline=new CancellationTokenSource();
+    private ITcpTransport m_transport;
     #endregion 变量
 
     #region 属性
@@ -133,6 +140,22 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     /// <inheritdoc/>
     public bool UseSsl => this.m_tcpCore.UseSsl;
 
+    /// <inheritdoc/>
+    public CancellationToken ClosedToken => this.m_tokenSourceForOnline.GetTokenOrCanceled();
+
+    protected ITcpTransport Transport
+    {
+        get
+        {
+            if (!this.m_customReceive)
+            {
+                return default;
+            }
+            this.m_transport ??= new TcpTransport(this.m_tcpCore);
+            return this.m_transport;
+        }
+    }
+
     #endregion 属性
 
     #region Internal
@@ -140,11 +163,14 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     internal async Task InternalConnected(ConnectedEventArgs e)
     {
         this.m_online = true;
-
-        this.m_beginReceiveTask = Task.Run(this.BeginReceive);
-
-        this.m_beginReceiveTask.FireAndForget();
-
+        if (this.m_customReceive)
+        {
+            this.m_receiveTask = EasyTask.CompletedTask;
+        }
+        else
+        {
+            this.m_receiveTask = EasyTask.SafeRun(this.BeginReceive, this.m_tokenSourceForOnline.Token);
+        }
         await this.OnTcpConnected(e).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }
 
@@ -268,20 +294,22 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
                 this.MainSocket.SafeDispose();
                 // 安全地释放数据处理适配器资源
                 this.m_dataHandlingAdapter.SafeDispose();
+                this.m_tokenSourceForOnline.Cancel();
+                this.m_tokenSourceForOnline.SafeDispose();
                 // 启动一个新的任务，用于处理TCP关闭事件
                 _ = EasyTask.Run(this.PrivateOnTcpClosed, new ClosedEventArgs(manual, msg));
             }
         }
     }
 
-    private async Task BeginReceive()
+    private async Task BeginReceive(CancellationToken token)
     {
         var byteBlock = new ByteBlock(this.m_tcpCore.ReceiveBufferSize);
         while (true)
         {
             try
             {
-                var result = await this.m_tcpCore.ReadAsync(byteBlock.TotalMemory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                var result = await this.m_tcpCore.ReceiveAsync(byteBlock.TotalMemory,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
 
                 if (this.DisposedValue)
                 {
@@ -291,6 +319,7 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
 
                 if (result.BytesTransferred > 0)
                 {
+                    this.m_tcpCore.ReceiveIncrement(result.BytesTransferred);
                     byteBlock.SetLength(result.BytesTransferred);
                     try
                     {
@@ -314,9 +343,8 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
                     }
                     finally
                     {
-                        if (byteBlock.Holding || byteBlock.DisposedValue)
+                        if (!byteBlock.Using)
                         {
-                            byteBlock.Dispose();//释放上个内存
                             byteBlock = new ByteBlock(this.m_tcpCore.ReceiveBufferSize);
                         }
                         else
@@ -324,15 +352,15 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
                             byteBlock.Reset();
                             if (this.m_tcpCore.ReceiveBufferSize > byteBlock.Capacity)
                             {
-                                byteBlock.SetCapacity(this.m_tcpCore.ReceiveBufferSize);
+                                byteBlock.ExtendSize(this.m_tcpCore.ReceiveBufferSize);
                             }
                         }
                     }
                 }
-                else if (result.SocketError != null)
+                else if (result.SocketError !=  SocketError.Success)
                 {
                     byteBlock.Dispose();
-                    this.Abort(false, result.SocketError.Message);
+                    this.Abort(false, result.SocketError.ToString());
                     return;
                 }
                 else
@@ -424,7 +452,7 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     {
         try
         {
-            var beginReceiveTask = this.m_beginReceiveTask;
+            var beginReceiveTask = this.m_receiveTask;
             if (beginReceiveTask != null)
             {
                 await beginReceiveTask.ConfigureAwait(EasyTask.ContinueOnCapturedContext);
@@ -547,7 +575,7 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     /// </summary>
     /// <param name="byteBlock">包含收到的原始数据。</param>
     /// <returns>如果返回<see langword="true"/>则表示数据已被处理，且不会再向下传递。</returns>
-    protected virtual ValueTask<bool> OnTcpReceiving(ByteBlock byteBlock)
+    protected virtual ValueTask<bool> OnTcpReceiving(IByteBlockReader byteBlock)
     {
         // 将原始数据传递给所有相关的预处理插件，以进行初步的数据处理
         return this.PluginManager.RaiseAsync(typeof(ITcpReceivingPlugin), this.Resolver, this, new ByteBlockEventArgs(byteBlock));
@@ -630,10 +658,10 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     /// 设置数据处理适配器。
     /// </summary>
     /// <param name="adapter">要设置的适配器实例。</param>
-    /// <exception cref="ArgumentNullException">如果提供的适配器为null，则抛出此异常。</exception>
+    /// <exception cref="ArgumentNullException">如果提供的适配器为<see langword="null"/>，则抛出此异常。</exception>
     protected void SetAdapter(SingleStreamDataHandlingAdapter adapter)
     {
-        // 检查适配器是否为null，如果是则抛出异常
+        // 检查适配器是否为<see langword="null"/>，如果是则抛出异常
         if (adapter is null)
         {
             throw new ArgumentNullException(nameof(adapter));
@@ -658,7 +686,7 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
         this.m_dataHandlingAdapter = adapter;
     }
 
-    private async Task PrivateHandleReceivedData(ByteBlock byteBlock, IRequestInfo requestInfo)
+    private async Task PrivateHandleReceivedData(IByteBlockReader byteBlock, IRequestInfo requestInfo)
     {
         var receiver = this.m_receiver;
         if (receiver != null)
@@ -703,10 +731,11 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     /// 最后通过TCP核心组件实际发送数据。
     /// </summary>
     /// <param name="memory">要发送的数据，存储在内存中。</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns>一个Task对象，表示异步操作的结果。</returns>
     /// <exception cref="ObjectDisposedException">如果调用此方法的实例已被处置。</exception>
     /// <exception cref="InvalidOperationException">如果客户端未连接时抛出此异常。</exception>
-    protected async Task ProtectedDefaultSendAsync(ReadOnlyMemory<byte> memory)
+    protected async Task ProtectedDefaultSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token)
     {
         // 检查实例是否已被处置
         this.ThrowIfDisposed();
@@ -715,7 +744,7 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
         // 调用OnTcpSending事件处理程序进行预发送处理
         await this.OnTcpSending(memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         // 通过TCP核心组件实际发送数据
-        await this.m_tcpCore.SendAsync(memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        await this.m_tcpCore.SendAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }
 
     #endregion 直接发送
@@ -726,18 +755,19 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     /// 异步发送只读内存数据。
     /// </summary>
     /// <param name="memory">要发送的只读内存块。</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns>异步操作任务。</returns>
-    protected Task ProtectedSendAsync(in ReadOnlyMemory<byte> memory)
+    protected Task ProtectedSendAsync(in ReadOnlyMemory<byte> memory, CancellationToken token)
     {
         // 如果数据处理适配器未初始化，则调用默认发送方法。
         if (this.m_dataHandlingAdapter == null)
         {
-            return this.ProtectedDefaultSendAsync(memory);
+            return this.ProtectedDefaultSendAsync(memory, token);
         }
         else
         {
             // 否则，使用数据处理适配器发送数据。
-            return this.m_dataHandlingAdapter.SendInputAsync(memory);
+            return this.m_dataHandlingAdapter.SendInputAsync(memory, token);
         }
     }
 
@@ -745,13 +775,14 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     /// 异步发送请求信息。
     /// </summary>
     /// <param name="requestInfo">要发送的请求信息。</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns>异步操作任务。</returns>
-    protected Task ProtectedSendAsync(in IRequestInfo requestInfo)
+    protected Task ProtectedSendAsync(in IRequestInfo requestInfo, CancellationToken token)
     {
         // 在发送前验证是否能够发送请求信息。
         this.ThrowIfCannotSendRequestInfo();
         // 使用数据处理适配器发送请求信息。
-        return this.m_dataHandlingAdapter.SendInputAsync(requestInfo);
+        return this.m_dataHandlingAdapter.SendInputAsync(requestInfo, token);
     }
 
     /// <summary>
@@ -759,6 +790,7 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
     /// </summary>
     /// <param name="transferBytes">包含字节数据的传输列表。</param>
     /// <returns>异步操作任务。</returns>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     protected async Task ProtectedSendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         // 检查数据处理适配器是否初始化，或者是否支持拼接发送。
@@ -780,11 +812,11 @@ public abstract class TcpSessionClientBase : ResolverConfigObject, ITcpSession, 
                 // 根据数据处理适配器是否初始化，调用默认发送方法或适配器的发送方法。
                 if (this.m_dataHandlingAdapter == null)
                 {
-                    await this.ProtectedDefaultSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    await this.ProtectedDefaultSendAsync(byteBlock.Memory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                 }
                 else
                 {
-                    await this.m_dataHandlingAdapter.SendInputAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    await this.m_dataHandlingAdapter.SendInputAsync(byteBlock.Memory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                 }
             }
         }

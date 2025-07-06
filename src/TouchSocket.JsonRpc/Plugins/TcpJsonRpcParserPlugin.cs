@@ -99,7 +99,7 @@ public sealed class TcpJsonRpcParserPlugin : JsonRpcParserPluginBase, ITcpConnec
                     {
                         SerializerConverter = this.SerializerConverter,
                         Resolver = client.Resolver,
-                        SendAction = (data) => clientSender.SendAsync(data),
+                        SendAction = (data,token) => clientSender.SendAsync(data,token),
                         Logger = client.Logger
                     };
 

@@ -19,7 +19,7 @@ internal class DataSetFastBinaryConverter : FastBinaryConverter<DataSet>
 {
     protected override DataSet Read<TByteBlock>(ref TByteBlock byteBlock, Type type)
     {
-        return SerializeConvert.BinaryDeserialize<DataSet>(byteBlock.ReadBytesPackage());
+        return SerializeConvert.BinaryDeserialize<DataSet>(byteBlock.ReadBytesPackageSpan().ToArray());
     }
 
     protected override void Write<TByteBlock>(ref TByteBlock byteBlock, in DataSet obj)

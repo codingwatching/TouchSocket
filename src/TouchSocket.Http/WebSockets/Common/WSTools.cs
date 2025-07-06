@@ -31,24 +31,25 @@ internal static class WSTools
     {
         int payloadLength;
 
-        byte[] extLen;
+        Span<byte> extLen= stackalloc byte[8];
 
         var length = memory.Length;
 
         if (length < 126)
         {
             payloadLength = length;
-            extLen = new byte[0];
+            extLen = [];
         }
         else if (length < 65536)
         {
             payloadLength = 126;
-            extLen = TouchSocketBitConverter.BigEndian.GetBytes((ushort)length);
+            extLen = extLen.Slice(0,2);
+            TouchSocketBitConverter.BigEndian.WriteBytes(extLen,(ushort)length);
         }
         else
         {
             payloadLength = 127;
-            extLen = TouchSocketBitConverter.BigEndian.GetBytes((ulong)length);
+            TouchSocketBitConverter.BigEndian.WriteBytes(extLen, (ulong)length);
         }
 
         var header = dataFrame.FIN ? 1 : 0;
@@ -61,11 +62,11 @@ internal static class WSTools
 
         header = (header << 7) + payloadLength;
 
-        byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes((ushort)header));
+        byteBlock.WriteUInt16((ushort)header, EndianType.Big);
 
         if (payloadLength > 125)
         {
-            byteBlock.Write(new ReadOnlySpan<byte>(extLen, 0, extLen.Length));
+            byteBlock.Write(extLen);
         }
 
         if (dataFrame.Mask)
@@ -77,10 +78,7 @@ internal static class WSTools
         {
             if (dataFrame.Mask)
             {
-                if (byteBlock.Capacity < byteBlock.Position + length)
-                {
-                    byteBlock.SetCapacity(byteBlock.Position + length, true);
-                }
+                byteBlock.ExtendSize(length);
                 WSTools.DoMask(byteBlock.TotalMemory.Span.Slice(byteBlock.Position), memory.Span, dataFrame.MaskingKey);
                 byteBlock.SetLength(byteBlock.Position + length);
             }

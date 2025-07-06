@@ -12,6 +12,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TouchSocket.Core;
@@ -27,7 +28,7 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     public TimeSpan CacheTimeout { get; set; } = TimeSpan.FromSeconds(1);
 
     /// <summary>
-    /// 是否启用缓存超时。默认false。
+    /// 是否启用缓存超时。默认<see langword="false"/>。
     /// </summary>
     public bool CacheTimeoutEnable { get; set; } = false;
 
@@ -40,18 +41,18 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     /// <summary>
     /// 当接收数据处理完成后，回调该函数执行接收
     /// </summary>
-    public Func<ByteBlock, IRequestInfo, Task> ReceivedAsyncCallBack { get; set; }
+    public Func<IByteBlockReader, IRequestInfo, Task> ReceivedAsyncCallBack { get; set; }
 
     /// <summary>
     /// 当发送数据处理完成后，回调该函数执行异步发送
     /// </summary>
-    public Func<ReadOnlyMemory<byte>, Task> SendAsyncCallBack { get; set; }
+    public Func<ReadOnlyMemory<byte>,CancellationToken, Task> SendAsyncCallBack { get; set; }
 
     /// <summary>
-    /// 是否在收到数据时，即刷新缓存时间。默认true。
+    /// 是否在收到数据时，即刷新缓存时间。默认<see langword="true"/>。
     /// <list type="number">
-    /// <item>当设为true时，将弱化<see cref="CacheTimeout"/>的作用，只要一直有数据，则缓存不会过期。</item>
-    /// <item>当设为false时，则在<see cref="CacheTimeout"/>的时效内。必须完成单个缓存的数据。</item>
+    /// <item>当设为<see langword="true"/>时，将弱化<see cref="CacheTimeout"/>的作用，只要一直有数据，则缓存不会过期。</item>
+    /// <item>当设为<see langword="false"/>时，则在<see cref="CacheTimeout"/>的时效内。必须完成单个缓存的数据。</item>
     /// </list>
     /// </summary>
     public bool UpdateCacheTimeWhenRev { get; set; } = true;
@@ -65,7 +66,7 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     /// 收到数据的切入点，该方法由框架自动调用。
     /// </summary>
     /// <param name="byteBlock"></param>
-    public async Task ReceivedInputAsync(ByteBlock byteBlock)
+    public async Task ReceivedInputAsync(IByteBlockReader byteBlock)
     {
         try
         {
@@ -83,24 +84,26 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     /// 发送数据的切入点，该方法由框架自动调用。
     /// </summary>
     /// <param name="requestInfo"></param>
+    /// <param name="token">可取消令箭</param>
     /// <returns></returns>
-    public Task SendInputAsync(IRequestInfo requestInfo)
+    public Task SendInputAsync(IRequestInfo requestInfo, CancellationToken token )
     {
-        return this.PreviewSendAsync(requestInfo);
+        return this.PreviewSendAsync(requestInfo,token);
     }
 
     /// <summary>
     /// 发送数据的切入点，该方法由框架自动调用。
     /// </summary>
-    public Task SendInputAsync(ReadOnlyMemory<byte> memory)
+    public Task SendInputAsync(ReadOnlyMemory<byte> memory, CancellationToken token)
     {
-        return this.PreviewSendAsync(memory);
+        return this.PreviewSendAsync(memory,token);
     }
 
     /// <summary>
     /// 发送数据的切入点，该方法由框架自动调用。
     /// </summary>
     /// <param name="transferBytes"></param>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     public Task SendInputAsync(IList<ArraySegment<byte>> transferBytes)
     {
         return this.PreviewSendAsync(transferBytes);
@@ -110,7 +113,8 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     /// 当发送数据前预先处理数据
     /// </summary>
     /// <param name="requestInfo"></param>
-    protected virtual async Task PreviewSendAsync(IRequestInfo requestInfo)
+    /// <param name="token">可取消令箭</param>
+    protected virtual async Task PreviewSendAsync(IRequestInfo requestInfo, CancellationToken token=default)
     {
         ThrowHelper.ThrowArgumentNullExceptionIf(requestInfo, nameof(requestInfo));
 
@@ -120,7 +124,7 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
         try
         {
             requestInfoBuilder.Build(ref byteBlock);
-            await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(byteBlock.Memory,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         finally
         {
@@ -131,9 +135,9 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     /// <summary>
     /// 当发送数据前预先处理数据
     /// </summary>
-    protected virtual Task PreviewSendAsync(ReadOnlyMemory<byte> memory)
+    protected virtual Task PreviewSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token = default)
     {
-        return this.GoSendAsync(memory);
+        return this.GoSendAsync(memory, token);
     }
 
     /// <summary>
@@ -141,6 +145,7 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     /// 当属性SplicingSend实现为<see langword="true"/>时，系统才会调用该方法。
     /// </summary>
     /// <param name="transferBytes">代发送数据组合</param>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     protected virtual Task PreviewSendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         throw new NotImplementedException();
@@ -160,7 +165,7 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     /// </summary>
     /// <param name="byteBlock">以二进制形式传递</param>
     /// <param name="requestInfo">以解析实例传递</param>
-    protected virtual Task GoReceivedAsync(ByteBlock byteBlock, IRequestInfo requestInfo)
+    protected virtual Task GoReceivedAsync(IByteBlockReader byteBlock, IRequestInfo requestInfo)
     {
         return this.ReceivedAsyncCallBack == null ? EasyTask.CompletedTask : this.ReceivedAsyncCallBack.Invoke(byteBlock, requestInfo);
     }
@@ -168,18 +173,19 @@ public abstract class SingleStreamDataHandlingAdapter : DataHandlingAdapter
     /// <summary>
     /// 异步发送已经经过预先处理后的数据
     /// </summary>
-    /// <param name="memory"></param>
+    /// <param name="memory">数据</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns></returns>
-    protected virtual Task GoSendAsync(ReadOnlyMemory<byte> memory)
+    protected virtual Task GoSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token)
     {
-        return this.SendAsyncCallBack == null ? EasyTask.CompletedTask : this.SendAsyncCallBack.Invoke(memory);
+        return this.SendAsyncCallBack == null ? EasyTask.CompletedTask : this.SendAsyncCallBack.Invoke(memory,token);
     }
 
     /// <summary>
-    /// 当接收到数据后预先处理数据,然后调用<see cref="GoReceivedAsync(ByteBlock, IRequestInfo)"/>处理数据
+    /// 当接收到数据后预先处理数据,然后调用<see cref="GoReceivedAsync(IByteBlockReader, IRequestInfo)"/>处理数据
     /// </summary>
     /// <param name="byteBlock"></param>
-    protected abstract Task PreviewReceivedAsync(ByteBlock byteBlock);
+    protected abstract Task PreviewReceivedAsync(IByteBlockReader byteBlock);
 
     /// <summary>
     /// 重置解析器到初始状态，一般在<see cref="DataHandlingAdapter.OnError(Exception,string, bool, bool)"/>被触发时，由返回值指示是否调用。

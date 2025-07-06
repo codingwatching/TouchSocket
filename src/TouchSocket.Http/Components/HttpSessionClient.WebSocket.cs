@@ -107,10 +107,10 @@ public partial class HttpSessionClient : TcpSessionClientBase, IHttpSessionClien
     /// <param name="webSocket">WebSocket对象，表示握手成功的WebSocket连接。</param>
     /// <param name="e">HttpContextEventArgs对象，包含HTTP上下文信息。</param>
     /// <returns>一个表示事件处理完成的Task对象。</returns>
-    protected virtual Task OnWebSocketHandshaked(IWebSocket webSocket, HttpContextEventArgs e)
+    protected virtual async Task OnWebSocketHandshaked(IWebSocket webSocket, HttpContextEventArgs e)
     {
-        // 在一个任务中异步调用插件管理器的RaiseAsync方法，传递WebSocket和HTTP上下文参数
-        return Task.Run(() => this.PluginManager.RaiseAsync(typeof(IWebSocketHandshakedPlugin), this.Resolver, webSocket, e));
+        await this.PluginManager.RaiseAsync(typeof(IWebSocketHandshakedPlugin), this.Resolver, webSocket, e)
+            .ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }
 
     /// <summary>

@@ -53,26 +53,61 @@ public class FileTransferRouterPackage : WaitRouterPackage
     protected override bool IncludedRouter => true;
 
     /// <inheritdoc/>
-    public override void PackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void PackageBody<TWriter>(ref TWriter writer)
     {
-        base.PackageBody(ref byteBlock);
-        byteBlock.WriteInt32(this.ContinuationIndex);
-        byteBlock.WriteString(this.Path);
-        byteBlock.WriteInt32(this.ResourceHandle);
-        byteBlock.WriteInt32(this.FileSectionSize);
-        byteBlock.WritePackage(this.FileInfo);
-        byteBlock.WritePackage(this.Metadata);
+        base.PackageBody(ref writer);
+        writer.WriteInt32(this.ContinuationIndex);
+        writer.WriteString(this.Path);
+        writer.WriteInt32(this.ResourceHandle);
+        writer.WriteInt32(this.FileSectionSize);
+        if (this.FileInfo is null)
+        {
+            writer.WriteNull();
+        }
+        else
+        {
+            writer.WriteNotNull();
+            this.FileInfo.Package(ref writer);
+        }
+        
+        if (this.Metadata is null)
+        {
+            writer.WriteNull();
+        }
+        else
+        {
+            writer.WriteNotNull();
+            this.Metadata.Package(ref writer);
+        }
     }
 
     /// <inheritdoc/>
-    public override void UnpackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void UnpackageBody<TReader>(ref TReader reader)
     {
-        base.UnpackageBody(ref byteBlock);
-        this.ContinuationIndex = byteBlock.ReadInt32();
-        this.Path = byteBlock.ReadString();
-        this.ResourceHandle = byteBlock.ReadInt32();
-        this.FileSectionSize = byteBlock.ReadInt32();
-        this.FileInfo = byteBlock.ReadPackage<RemoteFileInfo>();
-        this.Metadata = byteBlock.ReadPackage<Metadata>();
+        base.UnpackageBody(ref reader);
+        this.ContinuationIndex = reader.ReadInt32();
+        this.Path = reader.ReadString();
+        this.ResourceHandle = reader.ReadInt32();
+        this.FileSectionSize = reader.ReadInt32();
+
+        if (reader.ReadIsNull())
+        {
+            this.FileInfo = null;
+        }
+        else
+        {
+            this.FileInfo = new RemoteFileInfo();
+            this.FileInfo.Unpackage(ref reader);
+        }
+        
+        if (reader.ReadIsNull())
+        {
+            this.Metadata = null;
+        }
+        else
+        {
+            this.Metadata = new Metadata();
+            this.Metadata.Unpackage(ref reader);
+        }
     }
 }

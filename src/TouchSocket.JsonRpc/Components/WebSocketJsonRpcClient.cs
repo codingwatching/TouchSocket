@@ -50,9 +50,9 @@ public class WebSocketJsonRpcClient : SetupClientWebSocket, IWebSocketJsonRpcCli
 
     #region JsonRpcActor
 
-    private Task SendAction(ReadOnlyMemory<byte> memory)
+    private Task SendAction(ReadOnlyMemory<byte> memory,CancellationToken token)
     {
-        return base.ProtectedSendAsync(memory, WebSocketMessageType.Text, true, CancellationToken.None);
+        return base.ProtectedSendAsync(memory, WebSocketMessageType.Text, true, token);
     }
 
     #endregion JsonRpcActor
@@ -88,7 +88,7 @@ public class WebSocketJsonRpcClient : SetupClientWebSocket, IWebSocketJsonRpcCli
     }
 
     /// <inheritdoc/>
-    protected override async Task OnReceived(System.Net.WebSockets.WebSocketReceiveResult result, ByteBlock byteBlock)
+    protected override async Task OnReceived(WebSocketReceiveResult result, IByteBlockReader byteBlock)
     {
         if (result.MessageType == WebSocketMessageType.Text)
         {

@@ -11,6 +11,7 @@
 //------------------------------------------------------------------------------
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 
@@ -65,7 +66,7 @@ internal class MqttAdapter : CustomDataHandlingAdapter<MqttMessage>
         return FilterResult.Success;
     }
 
-    protected override async Task PreviewSendAsync(IRequestInfo requestInfo)
+    protected override async Task PreviewSendAsync(IRequestInfo requestInfo, CancellationToken token)
     {
         if (requestInfo is MqttMessage mqttMessage)
         {
@@ -80,7 +81,7 @@ internal class MqttAdapter : CustomDataHandlingAdapter<MqttMessage>
             {
                 mqttMessage.InternalSetVersion(this.Version);
                 mqttMessage.Build(ref byteBlock);
-                await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                await this.GoSendAsync(byteBlock.Memory,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             }
             finally
             {

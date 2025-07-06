@@ -10,7 +10,6 @@
 //  感谢您的下载和使用
 //------------------------------------------------------------------------------
 
-#if !NET45
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -522,4 +521,3 @@ public class WaitHandlePool<TWaitData, TWaitDataAsync, T> : DisposableObject, IW
         return sign;
     }
 }
-#endif

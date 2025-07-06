@@ -29,50 +29,50 @@ public class WaitRouterPackage : MsgRouterPackage, IWaitResult
     protected virtual bool IncludedRouter { get; }
 
     /// <inheritdoc/>
-    public override void PackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void PackageBody<TWriter>(ref TWriter writer)
     {
-        base.PackageBody(ref byteBlock);
+        base.PackageBody(ref writer);
         if (this.IncludedRouter)
         {
             return;
         }
 
-        byteBlock.WriteInt32(this.Sign);
-        byteBlock.WriteByte(this.Status);
+        writer.WriteInt32(this.Sign);
+        writer.WriteByte(this.Status);
     }
 
     /// <inheritdoc/>
-    public override void PackageRouter<TByteBlock>(ref TByteBlock byteBlock)
+    public override void PackageRouter<TWriter>(ref TWriter writer)
     {
-        base.PackageRouter(ref byteBlock);
+        base.PackageRouter(ref writer);
         if (!this.IncludedRouter)
         {
             return;
         }
 
-        byteBlock.WriteInt32(this.Sign);
-        byteBlock.WriteByte(this.Status);
+        writer.WriteInt32(this.Sign);
+        writer.WriteByte(this.Status);
     }
 
     /// <inheritdoc/>
-    public override void UnpackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void UnpackageBody<TReader>(ref TReader reader)
     {
-        base.UnpackageBody(ref byteBlock);
+        base.UnpackageBody(ref reader);
         if (!this.IncludedRouter)
         {
-            this.Sign = byteBlock.ReadInt32();
-            this.Status = byteBlock.ReadByte();
+            this.Sign = reader.ReadInt32();
+            this.Status = reader.ReadByte();
         }
     }
 
     /// <inheritdoc/>
-    public override void UnpackageRouter<TByteBlock>(ref TByteBlock byteBlock)
+    public override void UnpackageRouter<TReader>(ref TReader reader)
     {
-        base.UnpackageRouter(ref byteBlock);
+        base.UnpackageRouter(ref reader);
         if (this.IncludedRouter)
         {
-            this.Sign = byteBlock.ReadInt32();
-            this.Status = byteBlock.ReadByte();
+            this.Sign = reader.ReadInt32();
+            this.Status = reader.ReadByte();
         }
     }
 }

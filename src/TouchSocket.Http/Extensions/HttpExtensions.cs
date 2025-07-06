@@ -124,20 +124,6 @@ public static partial class HttpExtensions
         return string.Empty;
     }
 
-    /// <summary>
-    /// 同步获取一次性内容。
-    /// </summary>
-    /// <returns>返回一个只读内存块，该内存块包含具体的字节内容。</returns>
-    /// <param name="httpBase"></param>
-    /// <param name="cancellationToken">一个CancellationToken对象，用于取消异步操作。</param>
-    [Obsolete("该方法已被弃用，请使用GetContentAsync异步方法")]
-    public static ReadOnlyMemory<byte> GetContent(this HttpBase httpBase, CancellationToken cancellationToken = default)
-    {
-        // 使用Task.Run来启动一个新的任务，该任务将异步地获取内容。
-        // 这里使用GetFalseAwaitResult()方法来处理任务的结果，确保即使在同步上下文中也能正确处理异常。
-        return Task.Run(async () => await httpBase.GetContentAsync(cancellationToken).ConfigureAwait(EasyTask.ContinueOnCapturedContext), cancellationToken).GetFalseAwaitResult();
-    }
-
     #region 设置内容
 
     /// <summary>
@@ -379,14 +365,14 @@ public static partial class HttpExtensions
     }
 
     /// <summary>
-    /// 对比不包含参数的Url。其中有任意一方为null，则均返回False。
+    /// 对比不包含参数的Url。其中有任意一方为<see langword="null"/>，则均返回False。
     /// </summary>
     /// <param name="request">请求对象，用于获取待对比的相对URL。</param>
     /// <param name="url">待对比的目标URL字符串。</param>
-    /// <returns>如果两个URL都不为null且在忽略大小写的情况下相等，则返回<see langword="true"/>；否则返回<see langword="false"/>。</returns>
+    /// <returns>如果两个URL都不为<see langword="null"/>且在忽略大小写的情况下相等，则返回<see langword="true"/>；否则返回<see langword="false"/>。</returns>
     public static bool UrlEquals<TRequest>(this TRequest request, string url) where TRequest : HttpRequest
     {
-        // 检查两个URL是否都不为null，并且在文化无关的大小写不敏感的情况下是否相等
+        // 检查两个URL是否都不为<see langword="null"/>，并且在文化无关的大小写不敏感的情况下是否相等
         return !string.IsNullOrEmpty(request.RelativeURL) && !string.IsNullOrEmpty(url) && request.RelativeURL.Equals(url, StringComparison.OrdinalIgnoreCase);
     }
 

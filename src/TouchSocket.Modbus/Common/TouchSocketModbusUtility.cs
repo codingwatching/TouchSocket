@@ -101,7 +101,7 @@ public static class TouchSocketModbusUtility
         crcSpan[1] = (byte)((wCrc & 0xFF00) >> 8);//高位在后
         crcSpan[0] = (byte)(wCrc & 0x00FF);       //低位在前
 
-        return TouchSocketBitConverter.BigEndian.UnsafeTo<ushort>(ref crcSpan[0]);
+        return TouchSocketBitConverter.BigEndian.To<ushort>(crcSpan);
     }
 
     /// <summary>

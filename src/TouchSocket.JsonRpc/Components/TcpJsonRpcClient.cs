@@ -41,9 +41,9 @@ public class TcpJsonRpcClient : TcpClientBase, ITcpJsonRpcClient
 
     #region JsonRpcActor
 
-    private Task SendAction(ReadOnlyMemory<byte> memory)
+    private Task SendAction(ReadOnlyMemory<byte> memory,CancellationToken token)
     {
-        return base.ProtectedSendAsync(memory);
+        return base.ProtectedSendAsync(memory, token);
     }
 
     #endregion JsonRpcActor

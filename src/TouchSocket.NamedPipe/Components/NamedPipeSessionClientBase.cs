@@ -44,15 +44,12 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
     private InternalReceiver m_receiver;
     private Task m_receiveTask;
     private IScopedResolver m_scopedResolver;
-
-    //private IResolver m_resolver;
     private INamedPipeServiceBase m_service;
-
     private Func<NamedPipeSessionClientBase, bool> m_tryAddAction;
     private TryOutEventHandler<NamedPipeSessionClientBase> m_tryGet;
     private TryOutEventHandler<NamedPipeSessionClientBase> m_tryRemoveAction;
     private DateTimeOffset m_lastSentTime;
-
+    private readonly CancellationTokenSource m_tokenSourceForOnline=new CancellationTokenSource();
     #endregion 字段
 
     /// <summary>
@@ -107,6 +104,9 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
     /// <inheritdoc/>
     public SingleStreamDataHandlingAdapter DataHandlingAdapter => this.m_dataHandlingAdapter;
 
+    /// <inheritdoc/>
+    public CancellationToken ClosedToken => m_tokenSourceForOnline.GetTokenOrCanceled();
+
     #region Internal
 
     internal Task InternalInitialized()
@@ -118,7 +118,7 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
     internal async Task InternalNamedPipeConnected(ConnectedEventArgs e)
     {
         this.m_online = true;
-        this.m_receiveTask = EasyTask.Run(this.BeginReceive);
+        this.m_receiveTask = EasyTask.Run(this.BeginReceive,this.m_tokenSourceForOnline.Token);
         await this.OnNamedPipeConnected(e).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }
 
@@ -230,6 +230,9 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
 
                 // 安全地释放保护数据处理适配器资源，避免资源泄露
                 this.m_dataHandlingAdapter.SafeDispose();
+
+                this.m_tokenSourceForOnline.Cancel();
+                this.m_tokenSourceForOnline.SafeDispose();
 
                 // 启动一个新的任务来处理管道关闭后的操作，传递中止操作的参数
                 _ = EasyTask.SafeRun(this.PrivateOnNamedPipeClosed, this.m_receiveTask, new ClosedEventArgs(manual, msg));
@@ -362,10 +365,10 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
     /// <param name="adapter">要设置的适配器实例</param>
     protected void SetAdapter(SingleStreamDataHandlingAdapter adapter)
     {
-        // 检查传入的适配器实例是否为null
+        // 检查传入的适配器实例是否为<see langword="null"/>
         if (adapter is null)
         {
-            // 如果为null，则抛出ArgumentNullException异常
+            // 如果为<see langword="null"/>，则抛出ArgumentNullException异常
             throw new ArgumentNullException(nameof(adapter));
         }
 
@@ -389,7 +392,7 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
         this.m_dataHandlingAdapter = adapter;
     }
 
-    private async Task BeginReceive()
+    private async Task BeginReceive(CancellationToken token)
     {
         while (true)
         {
@@ -397,7 +400,7 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
             {
                 try
                 {
-                    var r = await this.m_pipeStream.ReadAsync(byteBlock.TotalMemory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    var r = await this.m_pipeStream.ReadAsync(byteBlock.TotalMemory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                     if (r == 0)
                     {
                         this.Abort(false, "远程终端主动关闭");
@@ -537,7 +540,7 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
         this.m_receiveBufferSize = TouchSocketCoreUtility.HitBufferLength(value);
     }
 
-    private async Task PrivateHandleReceivedData(ByteBlock byteBlock, IRequestInfo requestInfo)
+    private async Task PrivateHandleReceivedData(IByteBlockReader byteBlock, IRequestInfo requestInfo)
     {
         var receiver = this.m_receiver;
         if (receiver != null)
@@ -575,15 +578,17 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
     #region 直接发送
 
     /// <inheritdoc/>
-    protected async Task ProtectedDefaultSendAsync(ReadOnlyMemory<byte> memory)
+    protected async Task ProtectedDefaultSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token)
     {
         this.ThrowIfDisposed();
         this.ThrowIfClientNotConnected();
         await this.OnNamedPipeSending(memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+
+        await this.m_semaphoreSlimForSend.WaitAsync(token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+
         try
         {
-            await this.m_semaphoreSlimForSend.WaitAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-            await this.m_pipeStream.WriteAsync(memory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.m_pipeStream.WriteAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             this.m_lastSentTime = DateTimeOffset.UtcNow;
         }
         finally
@@ -600,18 +605,19 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
     /// 异步发送数据，通过适配器模式灵活处理数据发送。
     /// </summary>
     /// <param name="memory">待发送的只读字节内存块。</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns>一个异步任务，表示发送操作。</returns>
-    protected Task ProtectedSendAsync(in ReadOnlyMemory<byte> memory)
+    protected Task ProtectedSendAsync(in ReadOnlyMemory<byte> memory, CancellationToken token)
     {
         // 如果数据处理适配器未设置，则使用默认发送方式。
         if (this.m_dataHandlingAdapter == null)
         {
-            return this.ProtectedDefaultSendAsync(memory);
+            return this.ProtectedDefaultSendAsync(memory, token);
         }
         else
         {
             // 否则，使用适配器的发送方法进行数据发送。
-            return this.m_dataHandlingAdapter.SendInputAsync(memory);
+            return this.m_dataHandlingAdapter.SendInputAsync(memory, token);
         }
     }
 
@@ -619,17 +625,18 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
     /// 异步安全发送请求信息。
     /// </summary>
     /// <param name="requestInfo">请求信息，用于发送。</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns>返回一个任务，该任务表示发送操作的异步结果。</returns>
     /// <remarks>
     /// 此方法用于在执行实际的数据处理之前，确保当前状态允许发送请求信息。
     /// 它使用了数据处理适配器来异步发送输入请求。
     /// </remarks>
-    protected Task ProtectedSendAsync(in IRequestInfo requestInfo)
+    protected Task ProtectedSendAsync(in IRequestInfo requestInfo, CancellationToken token)
     {
         // 检查当前状态是否允许发送请求信息，如果不允许则抛出异常。
         this.ThrowIfCannotSendRequestInfo();
         // 使用数据处理适配器异步发送请求信息。
-        return this.m_dataHandlingAdapter.SendInputAsync(requestInfo);
+        return this.m_dataHandlingAdapter.SendInputAsync(requestInfo, token);
     }
 
     /// <summary>
@@ -639,6 +646,7 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
     /// </summary>
     /// <param name="transferBytes">要发送的字节数据列表，每个项代表一个字节片段。</param>
     /// <returns>发送任务。</returns>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     protected async Task ProtectedSendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         // 检查数据处理适配器是否存在且支持拼接发送
@@ -662,12 +670,12 @@ public abstract class NamedPipeSessionClientBase : ResolverConfigObject, INamedP
                 if (this.m_dataHandlingAdapter == null)
                 {
                     // 如果没有数据处理适配器，则使用默认方式发送
-                    await this.ProtectedDefaultSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    await this.ProtectedDefaultSendAsync(byteBlock.Memory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                 }
                 else
                 {
                     // 如果有数据处理适配器，则通过适配器发送
-                    await this.m_dataHandlingAdapter.SendInputAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    await this.m_dataHandlingAdapter.SendInputAsync(byteBlock.Memory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                 }
             }
         }

@@ -18,7 +18,7 @@ using TouchSocket.Core;
 namespace TouchSocket.Mqtt;
 
 /// <summary>
-/// 提供用于 MQTT 操作的扩展方法。
+/// 提供用于 Mqtt 操作的扩展方法。
 /// </summary>
 public static class MqttExtension
 {
@@ -27,26 +27,32 @@ public static class MqttExtension
     private const uint VariableByteIntegerMaxValue = 268435455;
 
     /// <summary>
-    /// 从字节块中读取 MQTT Int16 字符串。
+    /// 从字节块中读取 Mqtt Int16 字符串。
     /// </summary>
     /// <typeparam name="TByteBlock">字节块的类型。</typeparam>
     /// <param name="byteBlock">要读取的字节块。</param>
     /// <returns>读取的字符串。</returns>
     public static string ReadMqttInt16String<TByteBlock>(ref TByteBlock byteBlock)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         return ReadMqttInt16String(ref byteBlock, out _);
     }
 
     /// <summary>
-    /// 从字节块中读取 MQTT Int16 字符串。
+    /// 从字节块中读取 Mqtt Int16 字符串。
     /// </summary>
     /// <typeparam name="TByteBlock">字节块的类型。</typeparam>
     /// <param name="byteBlock">要读取的字节块。</param>
     /// <param name="length">读取的字符串长度。</param>
     /// <returns>读取的字符串。</returns>
     public static string ReadMqttInt16String<TByteBlock>(ref TByteBlock byteBlock, out ushort length)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         length = byteBlock.ReadUInt16(EndianType.Big);
         return byteBlock.ReadToSpan(length).ToString(Encoding.UTF8);
@@ -59,7 +65,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要读取的字节块。</param>
     /// <returns>读取的可变字节整数。</returns>
     public static uint ReadVariableByteInteger<TByteBlock>(ref TByteBlock byteBlock)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         var multiplier = 1;
         var value = 0;
@@ -76,14 +85,17 @@ public static class MqttExtension
     }
 
     /// <summary>
-    /// 将 MQTT 固定报头写入字节块。
+    /// 将 Mqtt 固定报头写入字节块。
     /// </summary>
     /// <typeparam name="TByteBlock">字节块的类型。</typeparam>
     /// <param name="byteBlock">要写入的字节块。</param>
-    /// <param name="packetType">MQTT 消息类型。</param>
+    /// <param name="packetType">Mqtt 消息类型。</param>
     /// <param name="flags">要写入的标志。</param>
     public static void WriteMqttFixedHeader<TByteBlock>(ref TByteBlock byteBlock, MqttMessageType packetType, byte flags = 0)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         var fixedHeader = (int)packetType << 4;
         fixedHeader |= flags;
@@ -91,14 +103,17 @@ public static class MqttExtension
     }
 
     /// <summary>
-    /// 将 MQTT Int16 字符串写入字节块。
+    /// 将 Mqtt Int16 字符串写入字节块。
     /// </summary>
     /// <typeparam name="TByteBlock">字节块的类型。</typeparam>
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">要写入的字符串值。</param>
     /// <returns>写入的字符串长度。</returns>
     public static ushort WriteMqttInt16String<TByteBlock>(ref TByteBlock byteBlock, string value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         var pos = byteBlock.Position;
         byteBlock.Position += 2;
@@ -118,7 +133,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">要写入的值。</param>
     public static void WriteVariableByteInteger<TByteBlock>(ref TByteBlock byteBlock, uint value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value > VariableByteIntegerMaxValue)
         {
@@ -163,7 +181,7 @@ public static class MqttExtension
     }
 
     /// <summary>
-    /// 获取 MQTT Int16 字符串的长度。
+    /// 获取 Mqtt Int16 字符串的长度。
     /// </summary>
     /// <param name="value">字符串值。</param>
     /// <returns>字符串的长度。</returns>
@@ -237,12 +255,12 @@ public static class MqttExtension
     }
 
     /// <summary>
-    /// 从字节块中读取 MQTT 二进制数据。
+    /// 从字节块中读取 Mqtt 二进制数据。
     /// </summary>
     /// <typeparam name="TByteBlock">字节块的类型。</typeparam>
     /// <param name="byteBlock">要读取的字节块。</param>
     /// <returns>读取的二进制数据。</returns>
-    public static byte[] ReadMqttBinaryData<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public static byte[] ReadMqttBinaryData<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockReader
     {
         var length = byteBlock.ReadUInt16(EndianType.Big);
         var data = new byte[length];
@@ -282,7 +300,7 @@ public static class MqttExtension
     #endregion QosLevel
 
     /// <summary>
-    /// 将缓冲区转换为 MQTT Int16 值。
+    /// 将缓冲区转换为 Mqtt Int16 值。
     /// </summary>
     /// <param name="buffer">要转换的缓冲区。</param>
     /// <param name="offset">开始转换的偏移量。</param>
@@ -295,7 +313,11 @@ public static class MqttExtension
 
     #region MqttV5Properties
 
-    public static void WriteAssignedClientIdentifier<TByteBlock>(ref TByteBlock byteBlock, string value) where TByteBlock : IByteBlock
+    public static void WriteAssignedClientIdentifier<TByteBlock>(ref TByteBlock byteBlock, string value) 
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         WriteStringProperty(ref byteBlock, MqttPropertyId.AssignedClientIdentifier, value);
     }
@@ -307,7 +329,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">认证数据的值。</param>
     public static void WriteAuthenticationData<TByteBlock>(ref TByteBlock byteBlock, ReadOnlySpan<byte> value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value.IsEmpty)
         {
@@ -325,7 +350,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">认证方法的值。</param>
     public static void WriteAuthenticationMethod<TByteBlock>(ref TByteBlock byteBlock, string value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         WriteStringProperty(ref byteBlock, MqttPropertyId.AuthenticationMethod, value);
     }
@@ -337,7 +365,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">内容类型的值。</param>
     public static void WriteContentType<TByteBlock>(ref TByteBlock byteBlock, string value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         WriteStringProperty(ref byteBlock, MqttPropertyId.ContentType, value);
     }
@@ -349,7 +380,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">相关性数据的值。</param>
     public static void WriteCorrelationData<TByteBlock>(ref TByteBlock byteBlock, ReadOnlySpan<byte> value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value.IsEmpty)
         {
@@ -367,7 +401,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">最大数据包大小的值。</param>
     public static void WriteMaximumPacketSize<TByteBlock>(ref TByteBlock byteBlock, uint value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -377,7 +414,11 @@ public static class MqttExtension
         byteBlock.WriteUInt32(value, EndianType.Big);
     }
 
-    public static void WriteMaximumQoS<TByteBlock>(ref TByteBlock byteBlock, QosLevel value) where TByteBlock : IByteBlock
+    public static void WriteMaximumQoS<TByteBlock>(ref TByteBlock byteBlock, QosLevel value) 
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == QosLevel.ExactlyOnce)
         {
@@ -394,7 +435,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">消息过期间隔的值。</param>
     public static void WriteMessageExpiryInterval<TByteBlock>(ref TByteBlock byteBlock, uint value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -411,7 +455,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">负载格式指示符的值。</param>
     public static void WritePayloadFormatIndicator<TByteBlock>(ref TByteBlock byteBlock, MqttPayloadFormatIndicator value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == MqttPayloadFormatIndicator.Unspecified)
         {
@@ -421,7 +468,11 @@ public static class MqttExtension
         byteBlock.WriteByte((byte)value);
     }
 
-    public static void WriteReasonString<TByteBlock>(ref TByteBlock byteBlock, string value) where TByteBlock : IByteBlock
+    public static void WriteReasonString<TByteBlock>(ref TByteBlock byteBlock, string value) 
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         WriteStringProperty(ref byteBlock, MqttPropertyId.ReasonString, value);
     }
@@ -433,7 +484,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">接收最大值的值。</param>
     public static void WriteReceiveMaximum<TByteBlock>(ref TByteBlock byteBlock, ushort value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -450,7 +504,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">请求问题信息的值。</param>
     public static void WriteRequestProblemInformation<TByteBlock>(ref TByteBlock byteBlock, bool value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value)
         {
@@ -466,7 +523,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">请求问题信息的值。</param>
     public static void WriteRequestProblemInformation<TByteBlock>(ref TByteBlock byteBlock, uint value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -483,7 +543,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">请求响应信息的值。</param>
     public static void WriteRequestResponseInformation<TByteBlock>(ref TByteBlock byteBlock, bool value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value)
         {
@@ -499,7 +562,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">请求响应信息的值。</param>
     public static void WriteRequestResponseInformation<TByteBlock>(ref TByteBlock byteBlock, uint value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -509,7 +575,11 @@ public static class MqttExtension
         byteBlock.WriteUInt32(value, EndianType.Big);
     }
 
-    public static void WriteResponseInformation<TByteBlock>(ref TByteBlock byteBlock, string value) where TByteBlock : IByteBlock
+    public static void WriteResponseInformation<TByteBlock>(ref TByteBlock byteBlock, string value) 
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         WriteStringProperty(ref byteBlock, MqttPropertyId.ResponseInformation, value);
     }
@@ -521,12 +591,19 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">响应主题的值。</param>
     public static void WriteResponseTopic<TByteBlock>(ref TByteBlock byteBlock, string value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         WriteStringProperty(ref byteBlock, MqttPropertyId.ResponseTopic, value);
     }
 
-    public static void WriteRetainAvailable<TByteBlock>(ref TByteBlock byteBlock, bool value) where TByteBlock : IByteBlock
+    public static void WriteRetainAvailable<TByteBlock>(ref TByteBlock byteBlock, bool value)
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value)
         {
@@ -536,7 +613,11 @@ public static class MqttExtension
         byteBlock.WriteByte(0);
     }
 
-    public static void WriteServerKeepAlive<TByteBlock>(ref TByteBlock byteBlock, ushort value) where TByteBlock : IByteBlock
+    public static void WriteServerKeepAlive<TByteBlock>(ref TByteBlock byteBlock, ushort value) 
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -546,7 +627,11 @@ public static class MqttExtension
         byteBlock.WriteUInt16(value);
     }
 
-    public static void WriteServerReference<TByteBlock>(ref TByteBlock byteBlock, string value) where TByteBlock : IByteBlock
+    public static void WriteServerReference<TByteBlock>(ref TByteBlock byteBlock, string value) 
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         WriteStringProperty(ref byteBlock, MqttPropertyId.ServerReference, value);
     }
@@ -558,7 +643,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">会话过期间隔的值。</param>
     public static void WriteSessionExpiryInterval<TByteBlock>(ref TByteBlock byteBlock, uint value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -568,7 +656,11 @@ public static class MqttExtension
         byteBlock.WriteUInt32(value, EndianType.Big);
     }
 
-    public static void WriteSharedSubscriptionAvailable<TByteBlock>(ref TByteBlock byteBlock, bool value) where TByteBlock : IByteBlock
+    public static void WriteSharedSubscriptionAvailable<TByteBlock>(ref TByteBlock byteBlock, bool value)
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value)
         {
@@ -578,13 +670,21 @@ public static class MqttExtension
         byteBlock.WriteByte(0);
     }
 
-    public static void WriteSubscriptionIdentifier<TByteBlock>(ref TByteBlock byteBlock, uint subscriptionIdentifier) where TByteBlock : IByteBlock
+    public static void WriteSubscriptionIdentifier<TByteBlock>(ref TByteBlock byteBlock, uint subscriptionIdentifier) 
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         byteBlock.WriteByte((byte)MqttPropertyId.SubscriptionIdentifier);
         WriteVariableByteInteger(ref byteBlock, subscriptionIdentifier);
     }
 
-    public static void WriteSubscriptionIdentifiersAvailable<TByteBlock>(ref TByteBlock byteBlock, bool value) where TByteBlock : IByteBlock
+    public static void WriteSubscriptionIdentifiersAvailable<TByteBlock>(ref TByteBlock byteBlock, bool value)
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value)
         {
@@ -601,7 +701,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">主题别名最大值的值。</param>
     public static void WriteTopicAliasMaximum<TByteBlock>(ref TByteBlock byteBlock, ushort value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -611,7 +714,10 @@ public static class MqttExtension
         byteBlock.WriteUInt16(value, EndianType.Big);
     }
 
-    public static void WriteUserProperties<TByteBlock>(ref TByteBlock byteBlock, IReadOnlyList<MqttUserProperty> userProperties) where TByteBlock : IByteBlock
+    public static void WriteUserProperties<TByteBlock>(ref TByteBlock byteBlock, IReadOnlyList<MqttUserProperty> userProperties) where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (userProperties is null)
         {
@@ -631,7 +737,10 @@ public static class MqttExtension
     /// <param name="name">用户属性的名称。</param>
     /// <param name="value">用户属性的值。</param>
     public static void WriteUserProperty<TByteBlock>(ref TByteBlock byteBlock, string name, string value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (name.IsNullOrEmpty() || value.IsNullOrEmpty())
         {
@@ -642,7 +751,11 @@ public static class MqttExtension
         WriteMqttInt16String(ref byteBlock, value);
     }
 
-    public static void WriteWildcardSubscriptionAvailable<TByteBlock>(ref TByteBlock byteBlock, bool value) where TByteBlock : IByteBlock
+    public static void WriteWildcardSubscriptionAvailable<TByteBlock>(ref TByteBlock byteBlock, bool value)
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value)
         {
@@ -659,7 +772,10 @@ public static class MqttExtension
     /// <param name="byteBlock">要写入的字节块。</param>
     /// <param name="value">遗嘱延迟时间间隔的值。</param>
     public static void WriteWillDelayInterval<TByteBlock>(ref TByteBlock byteBlock, uint value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {
@@ -670,7 +786,10 @@ public static class MqttExtension
     }
 
     private static void WriteStringProperty<TByteBlock>(ref TByteBlock byteBlock, MqttPropertyId propertyId, string value)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value.IsNullOrEmpty())
         {
@@ -680,7 +799,11 @@ public static class MqttExtension
         WriteMqttInt16String(ref byteBlock, value);
     }
 
-    public static void WriteTopicAlias<TByteBlock>(ref TByteBlock byteBlock, ushort value) where TByteBlock : IByteBlock
+    public static void WriteTopicAlias<TByteBlock>(ref TByteBlock byteBlock, ushort value) 
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (value == 0)
         {

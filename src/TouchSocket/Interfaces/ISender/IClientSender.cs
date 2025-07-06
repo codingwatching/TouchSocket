@@ -31,5 +31,6 @@ public interface IClientSender : ISender, IRequestInfoSender
     /// <exception cref="ClientNotConnectedException">客户端没有连接</exception>
     /// <exception cref="OverlengthException">发送数据超长</exception>
     /// <exception cref="Exception">其他异常</exception>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     Task SendAsync(IList<ArraySegment<byte>> transferBytes);
 }

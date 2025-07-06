@@ -28,6 +28,10 @@ public interface IByteBlockBuilder
     /// <summary>
     /// 构建对象到<see cref="ByteBlock"/>
     /// </summary>
-    /// <param name="byteBlock">要构建的字节块对象引用。</param>
-    void Build<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock;
+    /// <param name="writer">要构建的字节块对象引用。</param>
+    void Build<TWriter>(ref TWriter writer) where TWriter : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
+        ;
 }

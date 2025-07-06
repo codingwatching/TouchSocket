@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Resources;
 
@@ -75,7 +76,7 @@ public class TerminatorPackageAdapter : SingleStreamDataHandlingAdapter
     /// 预处理
     /// </summary>
     /// <param name="byteBlock"></param>
-    protected override async Task PreviewReceivedAsync(ByteBlock byteBlock)
+    protected override async Task PreviewReceivedAsync(IByteBlockReader byteBlock)
     {
         if (this.CacheTimeoutEnable && DateTimeOffset.UtcNow - this.LastCacheTime > this.CacheTimeout)
         {
@@ -136,7 +137,7 @@ public class TerminatorPackageAdapter : SingleStreamDataHandlingAdapter
     }
 
     /// <inheritdoc/>
-    protected override async Task PreviewSendAsync(ReadOnlyMemory<byte> memory)
+    protected override async Task PreviewSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token = default)
     {
         if (memory.Length > this.MaxPackageSize)
         {
@@ -149,7 +150,7 @@ public class TerminatorPackageAdapter : SingleStreamDataHandlingAdapter
 
         try
         {
-            await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(byteBlock.Memory,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         finally
         {
@@ -158,6 +159,7 @@ public class TerminatorPackageAdapter : SingleStreamDataHandlingAdapter
     }
 
     /// <inheritdoc/>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     protected override async Task PreviewSendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         var length = 0;
@@ -180,7 +182,7 @@ public class TerminatorPackageAdapter : SingleStreamDataHandlingAdapter
 
         try
         {
-            await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(byteBlock.Memory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         finally
         {

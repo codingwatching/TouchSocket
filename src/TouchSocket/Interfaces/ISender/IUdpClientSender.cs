@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 
@@ -32,6 +33,7 @@ public interface IUdpClientSender : ISender, IUdpRequestInfoSender
     /// <exception cref="ClientNotConnectedException">客户端没有连接</exception>
     /// <exception cref="OverlengthException">发送数据超长</exception>
     /// <exception cref="Exception">其他异常</exception>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     Task SendAsync(EndPoint endPoint, IList<ArraySegment<byte>> transferBytes);
 
     /// <summary>
@@ -40,8 +42,9 @@ public interface IUdpClientSender : ISender, IUdpRequestInfoSender
     /// </summary>
     /// <param name="endPoint">远程终结点</param>
     /// <param name="memory">只读内存块，包含待发送的数据</param>
+    /// <param name="token">可取消令箭</param>
     /// <exception cref="OverlengthException">发送数据超长</exception>
     /// <exception cref="Exception">其他异常</exception>
     /// <returns>一个表示异步操作的Task对象</returns>
-    Task SendAsync(EndPoint endPoint, ReadOnlyMemory<byte> memory);
+    Task SendAsync(EndPoint endPoint, ReadOnlyMemory<byte> memory,CancellationToken token = default);
 }

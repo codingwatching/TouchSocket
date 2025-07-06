@@ -22,7 +22,10 @@ internal ref struct VariableByteIntegerRecorder
     private int m_startPosition;
 
     public void CheckOut<TByteBlock>(ref TByteBlock byteBlock, int minimum = 0)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         this.m_minimumCount = MqttExtension.GetVariableByteIntegerCount(minimum);
         this.m_startPosition = byteBlock.Position;
@@ -30,30 +33,33 @@ internal ref struct VariableByteIntegerRecorder
         this.m_dataPosition = byteBlock.Position;
     }
 
-    public readonly int CheckIn<TByteBlock>(ref TByteBlock byteBlock)
-        where TByteBlock : IByteBlock
+    public readonly int CheckIn<TWriter>(ref TWriter writer)
+        where TWriter : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
-        var endPosition = byteBlock.Position;
+        var endPosition = writer.Position;
 
         var len = endPosition - this.m_dataPosition;
         var lenCount = MqttExtension.GetVariableByteIntegerCount(len);
         if (lenCount > this.m_minimumCount)
         {
             var moveCount = lenCount - this.m_minimumCount;
-            byteBlock.ExtendSize(moveCount);
-            var span = byteBlock.TotalMemory.Span.Slice(this.m_dataPosition);
+            writer.ExtendSize(moveCount);
+            var span = writer.TotalMemory.Span.Slice(this.m_dataPosition);
             ShiftWithRight(span, moveCount);
 
-            byteBlock.Position = this.m_startPosition;
-            MqttExtension.WriteVariableByteInteger(ref byteBlock, (uint)len);
-            byteBlock.SetLength(endPosition);
-            byteBlock.SeekToEnd();
+            writer.Position = this.m_startPosition;
+            MqttExtension.WriteVariableByteInteger(ref writer, (uint)len);
+            writer.SetLength(endPosition);
+            writer.SeekToEnd();
         }
         else
         {
-            byteBlock.Position = this.m_startPosition;
-            MqttExtension.WriteVariableByteInteger(ref byteBlock, (uint)len);
-            byteBlock.SeekToEnd();
+            writer.Position = this.m_startPosition;
+            MqttExtension.WriteVariableByteInteger(ref writer, (uint)len);
+            writer.SeekToEnd();
         }
         return len;
     }

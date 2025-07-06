@@ -105,6 +105,9 @@ public class WebSocketDmtpSessionClient : ResolverConfigObject, IWebSocketDmtpSe
     public string VerifyToken => this.Config.GetValue(DmtpConfigExtension.DmtpOptionProperty).VerifyToken;
 
     /// <inheritdoc/>
+    public CancellationToken ClosedToken => this.m_httpContext.RequestAborted;
+
+    /// <inheritdoc/>
     public async Task<Result> CloseAsync(string msg, CancellationToken token = default)
     {
         try
@@ -399,9 +402,9 @@ public class WebSocketDmtpSessionClient : ResolverConfigObject, IWebSocketDmtpSe
     //    }
     //}
 
-    private async Task OnDmtpActorSendAsync(DmtpActor actor, ReadOnlyMemory<byte> memory)
+    private async Task OnDmtpActorSendAsync(DmtpActor actor, ReadOnlyMemory<byte> memory,CancellationToken token)
     {
-        await this.m_client.SendAsync(memory.GetArray(), WebSocketMessageType.Binary, true, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        await this.m_client.SendAsync(memory.GetArray(), WebSocketMessageType.Binary, true, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         this.m_sentCounter.Increment(memory.Length);
     }
 
@@ -464,7 +467,7 @@ public class WebSocketDmtpSessionClient : ResolverConfigObject, IWebSocketDmtpSe
 
     #endregion 事件
 
-    private async Task PrivateHandleReceivedData(ByteBlock byteBlock, IRequestInfo requestInfo)
+    private async Task PrivateHandleReceivedData(IByteBlockReader byteBlock, IRequestInfo requestInfo)
     {
         var message = (DmtpMessage)requestInfo;
         if (!await this.m_dmtpActor.InputReceivedData(message).ConfigureAwait(EasyTask.ContinueOnCapturedContext))

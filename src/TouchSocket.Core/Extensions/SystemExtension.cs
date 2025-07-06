@@ -300,7 +300,7 @@ public static class SystemExtension
     }
     /// <summary>
     /// 索引第一个包含数组的索引位置，例如：在{0,1,2,3,1,2,3}中索引{2,3}，则返回3。
-    /// <para>如果目标数组为null或长度为0，则直接返回offset的值</para>
+    /// <para>如果目标数组为<see langword="null"/>或长度为0，则直接返回offset的值</para>
     /// </summary>
     /// <param name="srcByteArray"></param>
     /// <param name="offset"></param>
@@ -313,7 +313,7 @@ public static class SystemExtension
     }
     /// <summary>
     /// 索引第一个包含数组的索引位置，例如：在{0,1,2,3,1,2,3}中索引{2,3}，则返回3。
-    /// <para>如果目标数组为null或长度为0，则直接返回offset的值</para>
+    /// <para>如果目标数组为<see langword="null"/>或长度为0，则直接返回offset的值</para>
     /// </summary>
     /// <param name="srcByteArray"></param>
     /// <param name="offset"></param>
@@ -701,6 +701,15 @@ public static class SystemExtension
         return MemoryMarshal.TryGetArray(memory, out var result) ? result : new ArraySegment<byte>(memory.ToArray());
     }
 
+    public static T First<T>(this ReadOnlyMemory<T> memory)
+    {
+        if (memory.IsEmpty)
+        {
+            ThrowHelper.ThrowArgumentNullException(nameof(memory));
+        }
+        return memory.Span[0];
+    }
+
     #endregion Memory
 
     #region EndPoint
@@ -927,10 +936,10 @@ public static class SystemExtension
     /// <remarks>
     /// 此方法利用内存块的 GetArray 方法获取数组段信息，然后使用现有的 WriteAsync 方法异步地将内容写入流中，提高了写入操作的效率和灵活性。
     /// </remarks>
-    public static async Task WriteAsync(this Stream stream, ReadOnlyMemory<byte> memory, CancellationToken token)
+    public static async ValueTask WriteAsync(this Stream stream, ReadOnlyMemory<byte> memory, CancellationToken token)
     {
         var segment = memory.GetArray();
-        await stream.WriteAsync(segment.Array, segment.Offset, segment.Count, token);
+        await stream.WriteAsync(segment.Array, segment.Offset, segment.Count, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }
 
     /// <summary>

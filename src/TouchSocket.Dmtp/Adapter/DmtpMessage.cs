@@ -71,19 +71,23 @@ public class DmtpMessage : DisposableObject, IFixedHeaderByteBlockRequestInfo, I
     /// <summary>
     /// 构建数据到<see cref="ByteBlock"/>
     /// </summary>
-    /// <param name="byteBlock"></param>
-    public void Build<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    /// <param name="writer"></param>
+    public void Build<TByteBlock>(ref TByteBlock writer)
+        where TByteBlock : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
-        byteBlock.Write(Head);
-        byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes(this.ProtocolFlags));
+        writer.Write(Head);
+        writer.WriteUInt16(this.ProtocolFlags, EndianType.Big);
         if (this.BodyByteBlock == null)
         {
-            byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes(0));
+            writer.WriteInt32(0, EndianType.Big);
         }
         else
         {
-            byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes(this.BodyByteBlock.Length));
-            byteBlock.Write(this.BodyByteBlock.Span);
+            writer.WriteInt32(this.BodyByteBlock.Length, EndianType.Big);
+            writer.Write(this.BodyByteBlock.Span);
         }
     }
 

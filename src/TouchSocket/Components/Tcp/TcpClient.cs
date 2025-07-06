@@ -155,18 +155,19 @@ public class TcpClient : TcpClientBase, ITcpClient
     #region 异步发送
 
     /// <inheritdoc/>
-    public virtual Task SendAsync(ReadOnlyMemory<byte> memory)
+    public virtual Task SendAsync(ReadOnlyMemory<byte> memory, CancellationToken token = default)
     {
-        return this.ProtectedSendAsync(memory);
+        return this.ProtectedSendAsync(memory, token);
     }
 
     /// <inheritdoc/>
-    public virtual Task SendAsync(IRequestInfo requestInfo)
+    public virtual Task SendAsync(IRequestInfo requestInfo, CancellationToken token = default)
     {
-        return this.ProtectedSendAsync(requestInfo);
+        return this.ProtectedSendAsync(requestInfo, token);
     }
 
     /// <inheritdoc/>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     public virtual Task SendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         return this.ProtectedSendAsync(transferBytes);

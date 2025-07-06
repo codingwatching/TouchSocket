@@ -21,7 +21,7 @@ internal class ModbusUdpRtuAdapter : UdpDataHandlingAdapter
 {
     public override bool CanSendRequestInfo => true;
 
-    protected override async Task PreviewReceived(EndPoint remoteEndPoint, ByteBlock byteBlock)
+    protected override async Task PreviewReceived(EndPoint remoteEndPoint, IByteBlockReader byteBlock)
     {
         var response = new ModbusRtuResponse();
         response.SlaveId = byteBlock.ReadByte();

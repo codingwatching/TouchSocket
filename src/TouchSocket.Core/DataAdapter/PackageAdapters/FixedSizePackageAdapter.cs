@@ -12,6 +12,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Resources;
 
@@ -56,7 +57,7 @@ public class FixedSizePackageAdapter : SingleStreamDataHandlingAdapter
     /// 预处理
     /// </summary>
     /// <param name="byteBlock"></param>
-    protected override async Task PreviewReceivedAsync(ByteBlock byteBlock)
+    protected override async Task PreviewReceivedAsync(IByteBlockReader byteBlock)
     {
         if (this.CacheTimeoutEnable && DateTimeOffset.UtcNow - this.LastCacheTime > this.CacheTimeout)
         {
@@ -98,7 +99,7 @@ public class FixedSizePackageAdapter : SingleStreamDataHandlingAdapter
     }
 
     /// <inheritdoc/>
-    protected override async Task PreviewSendAsync(ReadOnlyMemory<byte> memory)
+    protected override async Task PreviewSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token = default)
     {
         var dataLen = memory.Length;
         if (dataLen != this.FixedSize)
@@ -112,7 +113,7 @@ public class FixedSizePackageAdapter : SingleStreamDataHandlingAdapter
         byteBlock.SetLength(this.FixedSize);
         try
         {
-            await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(byteBlock.Memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         finally
         {
@@ -121,6 +122,7 @@ public class FixedSizePackageAdapter : SingleStreamDataHandlingAdapter
     }
 
     /// <inheritdoc/>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     protected override async Task PreviewSendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         var length = 0;
@@ -143,7 +145,7 @@ public class FixedSizePackageAdapter : SingleStreamDataHandlingAdapter
         byteBlock.SetLength(this.FixedSize);
         try
         {
-            await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(byteBlock.Memory,CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         finally
         {

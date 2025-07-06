@@ -20,19 +20,35 @@ internal class WaitFinishedPackage : WaitRouterPackage
     public Metadata Metadata { get; set; }
     public int ResourceHandle { get; set; }
 
-    public override void PackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void PackageBody<TWriter>(ref TWriter writer)
     {
-        base.PackageBody(ref byteBlock);
-        byteBlock.WriteInt32(this.ResourceHandle);
-        byteBlock.WritePackage(this.Metadata);
-        byteBlock.WriteByte((byte)this.Code);
+        base.PackageBody(ref writer);
+        writer.WriteInt32(this.ResourceHandle);
+        if (this.Metadata is null)
+        {
+            writer.WriteNull();
+        }
+        else
+        {
+            writer.WriteNotNull();
+            this.Metadata.Package(ref writer);
+        }
+        writer.WriteByte((byte)this.Code);
     }
 
-    public override void UnpackageBody<TByteBlock>(ref TByteBlock byteBlock)
+    public override void UnpackageBody<TReader>(ref TReader reader)
     {
-        base.UnpackageBody(ref byteBlock);
-        this.ResourceHandle = byteBlock.ReadInt32();
-        this.Metadata = byteBlock.ReadPackage<Metadata>();
-        this.Code = (ResultCode)byteBlock.ReadByte();
+        base.UnpackageBody(ref reader);
+        this.ResourceHandle = reader.ReadInt32();
+        if (reader.ReadIsNull())
+        {
+            this.Metadata = null;
+        }
+        else
+        {
+            this.Metadata = new Metadata();
+            this.Metadata.Unpackage(ref reader);
+        }
+        this.Code = (ResultCode)reader.ReadByte();
     }
 }

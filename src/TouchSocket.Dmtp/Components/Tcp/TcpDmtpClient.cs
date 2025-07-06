@@ -58,7 +58,7 @@ public partial class TcpDmtpClient : TcpClientBase, ITcpDmtpClient
     /// 发送<see cref="IDmtpActor"/>关闭消息。
     /// </summary>
     /// <param name="msg">关闭消息的内容</param>
-    /// <param name="token"></param>
+    /// <param name="token">可取消令箭</param>
     /// <returns>异步任务</returns>
     public override async Task<Result> CloseAsync(string msg, CancellationToken token = default)
     {
@@ -141,14 +141,14 @@ public partial class TcpDmtpClient : TcpClientBase, ITcpDmtpClient
 
     #region 内部委托绑定
 
-    private Task DmtpActorSendAsync(DmtpActor actor, ReadOnlyMemory<byte> memory)
+    private Task DmtpActorSendAsync(DmtpActor actor, ReadOnlyMemory<byte> memory, CancellationToken token)
     {
         this.ThrowIfTcpClientNotConnected();
         if (memory.Length > this.m_dmtpAdapter.MaxPackageSize)
         {
             ThrowHelper.ThrowArgumentOutOfRangeException_MoreThan(nameof(memory.Length), memory.Length, this.m_dmtpAdapter.MaxPackageSize);
         }
-        return base.ProtectedDefaultSendAsync(memory);
+        return base.ProtectedDefaultSendAsync(memory,token);
     }
 
     private async Task OnDmtpActorClose(DmtpActor actor, string msg)
@@ -326,7 +326,7 @@ public partial class TcpDmtpClient : TcpClientBase, ITcpDmtpClient
     }
 
     /// <inheritdoc/>
-    protected override async ValueTask<bool> OnTcpReceiving(ByteBlock byteBlock)
+    protected override async ValueTask<bool> OnTcpReceiving(IByteBlockReader byteBlock)
     {
         while (byteBlock.CanRead)
         {

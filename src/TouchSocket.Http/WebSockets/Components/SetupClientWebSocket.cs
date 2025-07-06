@@ -51,7 +51,7 @@ public abstract class SetupClientWebSocket : SetupConfigObject, IClosableClient,
     private int m_receiveBufferSize = 1024 * 10;
     private ValueCounter m_receiveCounter;
     private ValueCounter m_sendCounter;
-    private CancellationTokenSource m_tokenSourceForReceive;
+    private CancellationTokenSource m_tokenSourceForOnline;
 
     #endregion 字段
 
@@ -76,7 +76,7 @@ public abstract class SetupClientWebSocket : SetupConfigObject, IClosableClient,
 
             await this.m_client.ConnectAsync(this.RemoteIPHost, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
 
-            this.m_tokenSourceForReceive = new CancellationTokenSource();
+            this.m_tokenSourceForOnline = new CancellationTokenSource();
 
             //// 确保上次接收任务已经结束
             //var receiveTask = this.m_receiveTask;
@@ -84,7 +84,7 @@ public abstract class SetupClientWebSocket : SetupConfigObject, IClosableClient,
             //{
             //    await receiveTask.ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             //}
-            this.m_receiveTask = EasyTask.Run(this.BeginReceive, this.m_tokenSourceForReceive.Token);
+            this.m_receiveTask = EasyTask.Run(this.BeginReceive, this.m_tokenSourceForOnline.Token);
 
             this.m_isOnline = true;
         }
@@ -115,6 +115,9 @@ public abstract class SetupClientWebSocket : SetupConfigObject, IClosableClient,
 
     /// <inheritdoc/>
     public virtual bool Online => this.m_client != null && this.m_client.State == WebSocketState.Open && this.m_client.CloseStatus == null && this.m_isOnline;
+
+    /// <inheritdoc/>
+    public CancellationToken ClosedToken => this.m_tokenSourceForOnline.GetTokenOrCanceled();
 
     /// <inheritdoc/>
     public virtual async Task<Result> CloseAsync(string msg, CancellationToken token = default)
@@ -165,13 +168,13 @@ public abstract class SetupClientWebSocket : SetupConfigObject, IClosableClient,
 
     private void CancelReceive()
     {
-        var tokenSourceForReceive = this.m_tokenSourceForReceive;
+        var tokenSourceForReceive = this.m_tokenSourceForOnline;
         if (tokenSourceForReceive != null)
         {
             tokenSourceForReceive.Cancel();
             tokenSourceForReceive.Dispose();
         }
-        this.m_tokenSourceForReceive = null;
+        this.m_tokenSourceForOnline = null;
     }
 
     /// <inheritdoc/>
@@ -204,15 +207,15 @@ public abstract class SetupClientWebSocket : SetupConfigObject, IClosableClient,
     /// <param name="result"></param>
     /// <param name="byteBlock"></param>
     /// <returns></returns>
-    protected abstract Task OnReceived(WebSocketReceiveResult result, ByteBlock byteBlock);
+    protected abstract Task OnReceived(WebSocketReceiveResult result, IByteBlockReader byteBlock);
 
     /// <summary>
     /// 发送数据
     /// </summary>
-    /// <param name="memory"></param>
+    /// <param name="memory">数据</param>
     /// <param name="messageType"></param>
     /// <param name="endOfMessage"></param>
-    /// <param name="token"></param>
+    /// <param name="token">可取消令箭</param>
     /// <returns></returns>
     protected async Task ProtectedSendAsync(ReadOnlyMemory<byte> memory, WebSocketMessageType messageType, bool endOfMessage, CancellationToken token)
     {
@@ -277,9 +280,8 @@ public abstract class SetupClientWebSocket : SetupConfigObject, IClosableClient,
                 }
                 finally
                 {
-                    if (byteBlock.Holding || byteBlock.DisposedValue)
+                    if (!byteBlock.Using)
                     {
-                        byteBlock.Dispose();//释放上个内存
                         byteBlock = new ByteBlock(this.m_receiveBufferSize);
                     }
                     else
@@ -287,7 +289,7 @@ public abstract class SetupClientWebSocket : SetupConfigObject, IClosableClient,
                         byteBlock.Reset();
                         if (this.m_receiveBufferSize > byteBlock.Capacity)
                         {
-                            byteBlock.SetCapacity(this.m_receiveBufferSize);
+                            byteBlock.ExtendSize(this.m_receiveBufferSize);
                         }
                     }
                 }

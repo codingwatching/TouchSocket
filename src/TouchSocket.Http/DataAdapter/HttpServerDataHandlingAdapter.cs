@@ -55,24 +55,26 @@ public sealed class HttpServerDataHandlingAdapter : SingleStreamDataHandlingAdap
 
     /// <inheritdoc/>
     /// <param name="byteBlock"></param>
-    protected override async Task PreviewReceivedAsync(ByteBlock byteBlock)
+    protected override async Task PreviewReceivedAsync(IByteBlockReader byteBlock)
     {
         if (this.m_tempByteBlock == null)
         {
             byteBlock.Position = 0;
-            await this.Single(byteBlock, false).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.Single(byteBlock).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
         else
         {
             this.m_tempByteBlock.Write(byteBlock.Span);
-            var block = this.m_tempByteBlock;
-            this.m_tempByteBlock = null;
-            block.Position = 0;
-            await this.Single(block, true).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            using (var block = this.m_tempByteBlock)
+            {
+                this.m_tempByteBlock = null;
+                block.Position = 0;
+                await this.Single(block).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            }
         }
     }
 
-    private void Cache(ByteBlock byteBlock)
+    private void Cache(IByteBlockReader byteBlock)
     {
         if (byteBlock.CanReadLength > 0)
         {
@@ -95,83 +97,73 @@ public sealed class HttpServerDataHandlingAdapter : SingleStreamDataHandlingAdap
     //    //}
     //}
 
-    private async Task Single(ByteBlock byteBlock, bool dis)
+    private async Task Single(IByteBlockReader byteBlock)
     {
-        try
+        while (byteBlock.CanReadLength > 0)
         {
-            while (byteBlock.CanReadLength > 0)
+            if (this.DisposedValue)
             {
-                if (this.DisposedValue)
+                return;
+            }
+            if (this.m_currentRequest == null)
+            {
+                if (this.m_task != null)
                 {
-                    return;
+                    await this.m_task.ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    this.m_task = null;
                 }
-                if (this.m_currentRequest == null)
+
+                this.m_requestRoot.ResetHttp();
+                this.m_currentRequest = this.m_requestRoot;
+                if (this.m_currentRequest.ParsingHeader(ref byteBlock))
                 {
-                    if (this.m_task != null)
+                    //byteBlock.Position++;
+                    if (this.m_currentRequest.ContentLength > byteBlock.CanReadLength)
                     {
-                        await this.m_task.ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-                        this.m_task = null;
-                    }
+                        this.m_surLen = this.m_currentRequest.ContentLength;
 
-                    this.m_requestRoot.ResetHttp();
-                    this.m_currentRequest = this.m_requestRoot;
-                    if (this.m_currentRequest.ParsingHeader(ref byteBlock))
-                    {
-                        //byteBlock.Position++;
-                        if (this.m_currentRequest.ContentLength > byteBlock.CanReadLength)
-                        {
-                            this.m_surLen = this.m_currentRequest.ContentLength;
-
-                            this.m_task = this.TaskRunGoReceived(this.m_currentRequest);
-                        }
-                        else
-                        {
-                            var contentLength = (int)this.m_currentRequest.ContentLength;
-                            var content = byteBlock.Memory.Slice(byteBlock.Position, contentLength);
-                            byteBlock.Position += contentLength;
-
-                            this.m_currentRequest.InternalSetContent(content);
-
-                            this.m_task = this.TaskRunGoReceived(this.m_currentRequest);
-
-                            this.m_currentRequest = null;
-                        }
+                        this.m_task = this.TaskRunGoReceived(this.m_currentRequest);
                     }
                     else
                     {
-                        this.Cache(byteBlock);
+                        var contentLength = (int)this.m_currentRequest.ContentLength;
+                        var content = byteBlock.Memory.Slice(byteBlock.Position, contentLength);
+                        byteBlock.Position += contentLength;
+
+                        this.m_currentRequest.InternalSetContent(content);
+
+                        this.m_task = this.TaskRunGoReceived(this.m_currentRequest);
+
                         this.m_currentRequest = null;
-                        return;
-                    }
-                }
-
-                if (this.m_surLen > 0)
-                {
-                    if (byteBlock.CanRead)
-                    {
-                        var len = (int)Math.Min(this.m_surLen, byteBlock.CanReadLength);
-
-                        await this.m_currentRequest.InternalInputAsync(byteBlock.Memory.Slice(byteBlock.Position, len)).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-                        this.m_surLen -= len;
-                        byteBlock.Position += len;
-                        if (this.m_surLen == 0)
-                        {
-                            await this.m_currentRequest.CompleteInput().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-                            this.m_currentRequest = null;
-                        }
                     }
                 }
                 else
                 {
+                    this.Cache(byteBlock);
                     this.m_currentRequest = null;
+                    return;
                 }
             }
-        }
-        finally
-        {
-            if (dis)
+
+            if (this.m_surLen > 0)
             {
-                byteBlock.Dispose();
+                if (byteBlock.CanRead)
+                {
+                    var len = (int)Math.Min(this.m_surLen, byteBlock.CanReadLength);
+
+                    await this.m_currentRequest.InternalInputAsync(byteBlock.Memory.Slice(byteBlock.Position, len)).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    this.m_surLen -= len;
+                    byteBlock.Position += len;
+                    if (this.m_surLen == 0)
+                    {
+                        await this.m_currentRequest.CompleteInput().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                        this.m_currentRequest = null;
+                    }
+                }
+            }
+            else
+            {
+                this.m_currentRequest = null;
             }
         }
     }

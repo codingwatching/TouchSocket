@@ -52,6 +52,8 @@ internal sealed partial class InternalWebSocket : IWebSocket
     public IResolver Resolver => this.m_isServer ? this.m_httpSocketClient.Resolver : this.m_httpClientBase.Resolver;
     public string Version { get; set; }
 
+    public CancellationToken ClosedToken => this.m_isServer ? this.m_httpSocketClient.ClosedToken : this.m_httpClientBase.ClosedToken;
+
     public async Task<Result> CloseAsync(string msg, CancellationToken token = default)
     {
         try
@@ -106,11 +108,11 @@ internal sealed partial class InternalWebSocket : IWebSocket
         }
     }
 
-    public async Task<Result> PingAsync()
+    public async Task<Result> PingAsync(CancellationToken token = default)
     {
         try
         {
-            await this.SendAsync(new WSDataFrame() { FIN = true, Opcode = WSDataType.Ping }).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.SendAsync(new WSDataFrame() { FIN = true, Opcode = WSDataType.Ping },token:token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             return Result.Success;
         }
         catch (Exception ex)
@@ -119,11 +121,11 @@ internal sealed partial class InternalWebSocket : IWebSocket
         }
     }
 
-    public async Task<Result> PongAsync()
+    public async Task<Result> PongAsync(CancellationToken token = default)
     {
         try
         {
-            await this.SendAsync(new WSDataFrame() { FIN = true, Opcode = WSDataType.Pong }).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.SendAsync(new WSDataFrame() { FIN = true, Opcode = WSDataType.Pong },token:token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             return Result.Success;
         }
         catch (Exception ex)
@@ -136,24 +138,24 @@ internal sealed partial class InternalWebSocket : IWebSocket
 
     #region 发送
 
-    public async Task SendAsync(string text, bool endOfMessage = true)
+    public async Task SendAsync(string text, bool endOfMessage = true,CancellationToken token=default)
     {
         using (var frame = new WSDataFrame() { FIN = endOfMessage, Opcode = WSDataType.Text }.AppendText(text))
         {
-            await this.SendAsync(frame, endOfMessage).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.SendAsync(frame, endOfMessage,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
     }
 
-    public async Task SendAsync(ReadOnlyMemory<byte> memory, bool endOfMessage = true)
+    public async Task SendAsync(ReadOnlyMemory<byte> memory, bool endOfMessage = true, CancellationToken token = default)
     {
         using (var frame = new WSDataFrame() { FIN = endOfMessage, Opcode = WSDataType.Binary })
         {
             frame.AppendBinary(memory.Span);
-            await this.SendAsync(frame, endOfMessage).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.SendAsync(frame, endOfMessage,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
     }
 
-    public async Task SendAsync(WSDataFrame dataFrame, bool endOfMessage = true)
+    public async Task SendAsync(WSDataFrame dataFrame, bool endOfMessage = true, CancellationToken token = default)
     {
         WSDataType dataType;
         if (this.m_isCont)
@@ -180,12 +182,12 @@ internal sealed partial class InternalWebSocket : IWebSocket
             if (this.m_isServer)
             {
                 dataFrame.BuildResponse(ref byteBlock);
-                await this.m_httpSocketClient.InternalSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                await this.m_httpSocketClient.InternalSendAsync(byteBlock.Memory,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             }
             else
             {
                 dataFrame.BuildRequest(ref byteBlock);
-                await this.m_httpClientBase.InternalSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                await this.m_httpClientBase.InternalSendAsync(byteBlock.Memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             }
         }
         finally

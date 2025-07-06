@@ -20,30 +20,30 @@ internal class RedisRequestWaitPackage : RedisResponseWaitPackage
     public TimeSpan? timeSpan;
     public RedisPackageType packageType;
 
-    public override void Package<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Package<TWriter>(ref TWriter writer)
     {
-        base.Package(ref byteBlock);
-        byteBlock.WriteString(this.key);
-        byteBlock.WriteByte((byte)this.packageType);
+        base.Package(ref writer);
+        writer.WriteString(this.key);
+        writer.WriteByte((byte)this.packageType);
         if (this.timeSpan.HasValue)
         {
-            byteBlock.WriteByte(1);
-            byteBlock.WriteTimeSpan(this.timeSpan.Value);
+            writer.WriteByte(1);
+            writer.WriteTimeSpan(this.timeSpan.Value);
         }
         else
         {
-            byteBlock.WriteByte(0);
+            writer.WriteByte(0);
         }
     }
 
-    public override void Unpackage<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Unpackage<TReader>(ref TReader reader)
     {
-        base.Unpackage(ref byteBlock);
-        this.key = byteBlock.ReadString();
-        this.packageType = (RedisPackageType)byteBlock.ReadByte();
-        if (byteBlock.ReadByte() == 1)
+        base.Unpackage(ref reader);
+        this.key = reader.ReadString();
+        this.packageType = (RedisPackageType)reader.ReadByte();
+        if (reader.ReadByte() == 1)
         {
-            this.timeSpan = byteBlock.ReadTimeSpan();
+            this.timeSpan = reader.ReadTimeSpan();
         }
     }
 }

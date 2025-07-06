@@ -52,24 +52,24 @@ public abstract class RemoteFileSystemInfo : PackageBase
     public string Name { get; set; }
 
     /// <inheritdoc/>
-    public override void Package<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Package<TWriter>(ref TWriter writer)
     {
-        byteBlock.WriteDateTime(this.LastWriteTime);
-        byteBlock.WriteDateTime(this.LastAccessTime);
-        byteBlock.WriteDateTime(this.CreationTime);
-        byteBlock.WriteInt32((int)this.Attributes);
-        byteBlock.WriteString(this.FullName);
-        byteBlock.WriteString(this.Name);
+        writer.WriteDateTime(this.LastWriteTime);
+        writer.WriteDateTime(this.LastAccessTime);
+        writer.WriteDateTime(this.CreationTime);
+        writer.WriteInt32((int)this.Attributes);
+        writer.WriteString(this.FullName);
+        writer.WriteString(this.Name);
     }
 
     /// <inheritdoc/>
-    public override void Unpackage<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Unpackage<TReader>(ref TReader reader)
     {
-        this.LastWriteTime = byteBlock.ReadDateTime();
-        this.LastAccessTime = byteBlock.ReadDateTime();
-        this.CreationTime = byteBlock.ReadDateTime();
-        this.Attributes = (FileAttributes)byteBlock.ReadInt32();
-        this.FullName = byteBlock.ReadString();
-        this.Name = byteBlock.ReadString();
+        this.LastWriteTime = reader.ReadDateTime();
+        this.LastAccessTime = reader.ReadDateTime();
+        this.CreationTime = reader.ReadDateTime();
+        this.Attributes = (FileAttributes)reader.ReadInt32();
+        this.FullName = reader.ReadString();
+        this.Name = reader.ReadString();
     }
 }

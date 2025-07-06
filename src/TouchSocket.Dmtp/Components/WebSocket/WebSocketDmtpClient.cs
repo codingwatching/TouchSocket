@@ -165,7 +165,7 @@ public class WebSocketDmtpClient : SetupClientWebSocket, IWebSocketDmtpClient
     }
 
     /// <inheritdoc/>
-    protected override async Task OnReceived(WebSocketReceiveResult result, ByteBlock byteBlock)
+    protected override async Task OnReceived(WebSocketReceiveResult result, IByteBlockReader byteBlock)
     {
         try
         {
@@ -225,9 +225,9 @@ public class WebSocketDmtpClient : SetupClientWebSocket, IWebSocketDmtpClient
         return this.OnRouting(e);
     }
 
-    private async Task OnDmtpActorSendAsync(DmtpActor actor, ReadOnlyMemory<byte> memory)
+    private async Task OnDmtpActorSendAsync(DmtpActor actor, ReadOnlyMemory<byte> memory,CancellationToken token)
     {
-        await base.ProtectedSendAsync(memory, WebSocketMessageType.Binary, true, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        await base.ProtectedSendAsync(memory, WebSocketMessageType.Binary, true, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
     }
 
     #endregion 内部委托绑定

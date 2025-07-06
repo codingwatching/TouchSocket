@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 
@@ -32,7 +33,7 @@ public class NormalUdpDataHandlingAdapter : UdpDataHandlingAdapter
     /// <inheritdoc/>
     /// <param name="remoteEndPoint"></param>
     /// <param name="byteBlock"></param>
-    protected override Task PreviewReceived(EndPoint remoteEndPoint, ByteBlock byteBlock)
+    protected override Task PreviewReceived(EndPoint remoteEndPoint, IByteBlockReader byteBlock)
     {
         return this.GoReceived(remoteEndPoint, byteBlock, null);
     }
@@ -71,6 +72,7 @@ public class NormalUdpDataHandlingAdapter : UdpDataHandlingAdapter
     //}
 
     /// <inheritdoc/>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     protected override async Task PreviewSendAsync(EndPoint endPoint, IList<ArraySegment<byte>> transferBytes)
     {
         var length = 0;
@@ -87,7 +89,7 @@ public class NormalUdpDataHandlingAdapter : UdpDataHandlingAdapter
             {
                 byteBlock.Write(new ReadOnlySpan<byte>(item.Array, item.Offset, item.Count));
             }
-            await this.GoSendAsync(endPoint, byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(endPoint, byteBlock.Memory,CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
     }
 }

@@ -33,8 +33,8 @@ public abstract class TcpCommandLinePlugin : PluginBase, ITcpReceivedPlugin
     /// 该插件初始化时，会扫描自身类定义的所有命令方法，并将它们注册到插件内部的映射中。
     /// 这允许插件在接收到命令时，能够根据命令名称找到并执行相应的处理方法。
     /// </summary>
-    /// <param name="logger">用于日志记录的接口。确保外部提供的logger不为null，否则将抛出ArgumentNullException异常。</param>
-    /// <exception cref="ArgumentNullException">如果logger参数为null，则抛出此异常。</exception>
+    /// <param name="logger">用于日志记录的接口。确保外部提供的logger不为<see langword="null"/>，否则将抛出ArgumentNullException异常。</param>
+    /// <exception cref="ArgumentNullException">如果logger参数为<see langword="null"/>，则抛出此异常。</exception>
     protected TcpCommandLinePlugin(ILog logger)
     {
         // 初始化成员变量m_logger，用于后续的日志记录。
@@ -69,7 +69,7 @@ public abstract class TcpCommandLinePlugin : PluginBase, ITcpReceivedPlugin
     /// <returns>返回当前的TcpCommandLinePlugin实例，以支持链式调用。</returns>
     public TcpCommandLinePlugin NoReturnException()
     {
-        // 设置是否在执行异常时返回异常的标志为false
+        // 设置是否在执行异常时返回异常的标志为<see langword="false"/>
         this.ReturnException = false;
         // 返回当前实例，以支持链式调用
         return this;

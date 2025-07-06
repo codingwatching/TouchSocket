@@ -11,6 +11,7 @@
 //------------------------------------------------------------------------------
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 using TouchSocket.Http.WebSockets;
@@ -35,9 +36,9 @@ public abstract partial class HttpSessionClient : TcpSessionClientBase, IHttpSes
 
     #region Send
 
-    internal Task InternalSendAsync(in ReadOnlyMemory<byte> memory)
+    internal Task InternalSendAsync(in ReadOnlyMemory<byte> memory, CancellationToken token)
     {
-        return this.ProtectedDefaultSendAsync(memory);
+        return this.ProtectedDefaultSendAsync(memory, token);
     }
 
     #endregion Send

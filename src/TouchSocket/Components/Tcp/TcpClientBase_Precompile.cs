@@ -89,7 +89,7 @@ public partial class TcpClientBase
             // 进行身份验证
             await this.AuthenticateAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
 
-            this.m_tokenSourceForReceive = new CancellationTokenSource();
+            this.m_tokenSourceForOnline = new CancellationTokenSource();
 
             // 确保上次接收任务已经结束
             var receiveTask = this.m_receiveTask;
@@ -99,7 +99,7 @@ public partial class TcpClientBase
             }
 
             // 触发连接成功的事件
-            _ = EasyTask.SafeRun(this.PrivateOnTcpConnected, new ConnectedEventArgs(), this.m_tokenSourceForReceive.Token);
+            _ = EasyTask.SafeRun(this.PrivateOnTcpConnected, new ConnectedEventArgs(),  this.m_tokenSourceForOnline.Token);
         }
         finally
         {
@@ -150,7 +150,7 @@ public partial class TcpClientBase
             // 进行身份验证
             await this.AuthenticateAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
 
-            this.m_tokenSourceForReceive = new CancellationTokenSource();
+            this.m_tokenSourceForOnline = new CancellationTokenSource();
 
             // 确保上次接收任务已经结束
             var receiveTask = this.m_receiveTask;
@@ -160,7 +160,7 @@ public partial class TcpClientBase
             }
 
             // 启动新任务，处理连接后的操作
-            _ = EasyTask.SafeRun(this.PrivateOnTcpConnected, new ConnectedEventArgs(), this.m_tokenSourceForReceive.Token);
+            _ = EasyTask.SafeRun(this.PrivateOnTcpConnected, new ConnectedEventArgs(), this.m_tokenSourceForOnline.Token);
         }
         finally
         {
@@ -194,7 +194,7 @@ public partial class TcpClientBase
 
         if (this.Config.GetValue(TouchSocketConfigExtension.KeepAliveValueProperty) is KeepAliveValue keepAliveValue)
         {
-#if NET45_OR_GREATER
+#if NET462_OR_GREATER
 
             socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
             socket.IOControl(IOControlCode.KeepAliveValues, keepAliveValue.KeepAliveTime, null);

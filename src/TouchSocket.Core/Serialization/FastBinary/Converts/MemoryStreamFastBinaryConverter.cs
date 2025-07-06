@@ -19,18 +19,14 @@ internal class MemoryStreamFastBinaryConverter : FastBinaryConverter<MemoryStrea
 {
     protected override MemoryStream Read<TByteBlock>(ref TByteBlock byteBlock, Type type)
     {
-        return new MemoryStream(byteBlock.ReadBytesPackage());
+        return new MemoryStream(byteBlock.ReadBytesPackageSpan().ToArray());
     }
 
     protected override void Write<TByteBlock>(ref TByteBlock byteBlock, in MemoryStream obj)
     {
-#if !NET45
         if (obj.TryGetBuffer(out var array))
         {
-            byteBlock.WriteBytesPackage(array.Array, array.Offset, array.Count);
+            byteBlock.WriteBytesPackage(new ReadOnlySpan<byte>(array.Array, array.Offset, array.Count));
         }
-#endif
-        var bytes = obj.ToArray();
-        byteBlock.Write(bytes);
     }
 }

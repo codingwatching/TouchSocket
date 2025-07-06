@@ -190,7 +190,7 @@ public static class TouchSocketConfigExtension
     /// 设置Socket不使用Delay算法，
     /// 所需类型<see cref="bool"/>
     /// </summary>
-    public static readonly DependencyProperty<bool?> NoDelayProperty = new("NoDelay", null);
+    public static readonly DependencyProperty<bool?> NoDelayProperty = new("NoDelay", true);
 
     /// <summary>
     /// 远程目标地址，所需类型<see cref="IPHost"/>
@@ -265,7 +265,7 @@ public static class TouchSocketConfigExtension
             config.SetClientSslOption(new ClientSslOption()
             {
                 TargetHost = value.Authority,
-#if NET45 || NETSTANDARD2_0
+#if NETSTANDARD2_0
                 SslProtocols = SslProtocols.Ssl2 | SslProtocols.Ssl3 | SslProtocols.Tls | SslProtocols.Tls11 | SslProtocols.Tls12
 #elif NET481_OR_GREATER
                 SslProtocols = SslProtocols.Ssl2 | SslProtocols.Ssl3 | SslProtocols.Tls | SslProtocols.Tls11 | SslProtocols.Tls12 | SslProtocols.Tls13
@@ -280,7 +280,7 @@ public static class TouchSocketConfigExtension
     }
 
     /// <summary>
-    /// 设置Socket的NoDelay属性，默认不做处理。
+    /// 设置Socket的NoDelay属性，默认<see langword="true"/>
     /// </summary>
     /// <param name="config"></param>
     /// <param name="value"></param>
@@ -321,7 +321,7 @@ public static class TouchSocketConfigExtension
     public static readonly DependencyProperty<int> MaxCountProperty = new("MaxCount", 10000);
 
     /// <summary>
-    /// 端口复用，默认为false，所需类型<see cref="bool"/>
+    /// 端口复用，默认为<see langword="false"/>，所需类型<see cref="bool"/>
     /// </summary>
     public static readonly DependencyProperty<bool> ReuseAddressProperty = new("ReuseAddress", false);
 

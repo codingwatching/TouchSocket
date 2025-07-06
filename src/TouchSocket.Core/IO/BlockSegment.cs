@@ -52,6 +52,12 @@ public abstract class BlockSegment<TBlockResult> : DisposableObject, IValueTaskS
     /// </summary>
     protected void Cancel()
     {
+        var sourceStatus= this.m_valueTaskSourceCore.GetStatus(this.m_valueTaskSourceCore.Version);
+        // 如果当前状态是已完成或已取消，则不需要再次设置异常
+        if (sourceStatus !=  ValueTaskSourceStatus.Pending)
+        {
+            return;
+        }
         this.m_valueTaskSourceCore.SetException(new OperationCanceledException());
     }
 

@@ -11,6 +11,7 @@
 //------------------------------------------------------------------------------
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 
@@ -49,7 +50,7 @@ public class DmtpAdapter : CustomFixedHeaderByteBlockDataHandlingAdapter<DmtpMes
     }
 
     /// <inheritdoc/>
-    protected override async Task PreviewSendAsync(IRequestInfo requestInfo)
+    protected override async Task PreviewSendAsync(IRequestInfo requestInfo, CancellationToken token)
     {
         if (requestInfo is not DmtpMessage message)
         {
@@ -62,7 +63,7 @@ public class DmtpAdapter : CustomFixedHeaderByteBlockDataHandlingAdapter<DmtpMes
         {
             var block = byteBlock;
             message.Build(ref block);
-            await this.GoSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.GoSendAsync(byteBlock.Memory,token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         }
     }
 }

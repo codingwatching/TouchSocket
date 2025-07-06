@@ -10,15 +10,20 @@
 //  感谢您的下载和使用
 //------------------------------------------------------------------------------
 
-using System.Net;
-using System.Net.Sockets;
+using System;
+using System.Buffers;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Text;
 
-namespace TouchSocket.Sockets;
+namespace TouchSocket.Core;
 
-internal class SocketOperationResult
+public interface IByteBlock : IByteBlockReader, IByteBlockWriter, IDisposable
 {
-    public int BytesTransferred;
-    public EndPoint RemoteEndPoint;
-    public SocketException SocketError;
-    public IPPacketInformation ReceiveMessageFromPacketInfo;
+    bool Using { get; }
+
+    void Clear();
+
+    void Reset();
 }

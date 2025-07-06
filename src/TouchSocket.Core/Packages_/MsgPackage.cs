@@ -23,14 +23,14 @@ public class MsgPackage : PackageBase
     public string Message { get; set; }
 
     /// <inheritdoc/>
-    public override void Package<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Package<TWriter>(ref TWriter writer)
     {
-        byteBlock.WriteString(this.Message, FixedHeaderType.Ushort);
+        writer.WriteString(this.Message, FixedHeaderType.Ushort);
     }
 
     /// <inheritdoc/>
-    public override void Unpackage<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Unpackage<TReader>(ref TReader reader)
     {
-        this.Message = byteBlock.ReadString(FixedHeaderType.Ushort);
+        this.Message = reader.ReadString(FixedHeaderType.Ushort);
     }
 }

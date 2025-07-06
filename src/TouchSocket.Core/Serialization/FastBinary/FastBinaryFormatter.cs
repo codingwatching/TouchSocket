@@ -11,6 +11,7 @@
 //------------------------------------------------------------------------------
 
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -99,26 +100,29 @@ public static class FastBinaryFormatter
     /// <summary>
     /// 使用指定的序列化上下文将对象序列化到提供的字节块中。
     /// </summary>
-    /// <typeparam name="TByteBlock">字节块的类型，必须实现IByteBlock接口。</typeparam>
+    /// <typeparam name="TWriter">字节块的类型，必须实现IByteBlock接口。</typeparam>
     /// <typeparam name="T">要序列化的对象类型。</typeparam>
-    /// <param name="byteBlock">用于存储序列化数据的字节块。</param>
+    /// <param name="writer">用于存储序列化数据的字节块。</param>
     /// <param name="graph">要序列化的对象。</param>
     /// <param name="serializerContext">用于序列化的上下文。</param>
-    public static void Serialize<TByteBlock, [DynamicallyAccessedMembers(DynamicallyAccessed)] T>(ref TByteBlock byteBlock, in T graph, FastSerializerContext serializerContext = null)
-        where TByteBlock : IByteBlock
+    public static void Serialize<TWriter, [DynamicallyAccessedMembers(DynamicallyAccessed)] T>(ref TWriter writer, in T graph, FastSerializerContext serializerContext = null)
+        where TWriter : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         serializerContext ??= s_defaultFastSerializerContext;
 
-        var startPosition = byteBlock.Position;
+        var startPosition = writer.Position;
 
-        byteBlock.Position = startPosition + 1;
-        SerializeObject(ref byteBlock, graph, serializerContext);
+        writer.Position = startPosition + 1;
+        SerializeObject(ref writer, graph, serializerContext);
 
-        var pos = byteBlock.Position;
-        byteBlock.Position = startPosition;
-        byteBlock.WriteByte(1);
+        var pos = writer.Position;
+        writer.Position = startPosition;
+        writer.WriteByte(1);
 
-        byteBlock.Position = pos;
+        writer.Position = pos;
     }
 
     /// <summary>
@@ -142,29 +146,37 @@ public static class FastBinaryFormatter
         }
     }
 
-    private static void SerializeIListOrArray<TByteBlock>(ref TByteBlock byteBlock, in IEnumerable param, FastSerializerContext serializerContext) where TByteBlock : IByteBlock
+    private static void SerializeIListOrArray<TWriter>(ref TWriter writer, in IEnumerable param, FastSerializerContext serializerContext) 
+        where TWriter : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
-        var oldPosition = byteBlock.Position;
-        byteBlock.Position += 4;
+        var oldPosition = writer.Position;
+        writer.Position += 4;
         uint paramLen = 0;
 
         foreach (var item in param)
         {
             paramLen++;
-            SerializeObject(ref byteBlock, item, serializerContext);
+            SerializeObject(ref writer, item, serializerContext);
         }
-        var newPosition = byteBlock.Position;
-        byteBlock.Position = oldPosition;
-        byteBlock.WriteUInt32(paramLen);
-        byteBlock.Position = newPosition;
+        var newPosition = writer.Position;
+        writer.Position = oldPosition;
+        writer.WriteUInt32(paramLen);
+        writer.Position = newPosition;
     }
 
-    private static void SerializeMutilDimensionalArray<TByteBlock>(ref TByteBlock byteBlock, Array array, FastSerializerContext serializerContext) where TByteBlock : IByteBlock
+    private static void SerializeMutilDimensionalArray<TWriter>(ref TWriter writer, Array array, FastSerializerContext serializerContext) 
+        where TWriter : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         var rank = array.Rank;
         for (var i = 0; i < rank; i++)
         {
-            byteBlock.WriteInt32(array.GetLength(i));
+            writer.WriteInt32(array.GetLength(i));
         }
 
         //var oldPosition = byteBlock.Position;
@@ -174,7 +186,7 @@ public static class FastBinaryFormatter
         foreach (var item in array)
         {
             //paramLen++;
-            SerializeObject(ref byteBlock, item, serializerContext);
+            SerializeObject(ref writer, item, serializerContext);
         }
         //var newPosition = byteBlock.Position;
         //byteBlock.Position = oldPosition;
@@ -182,96 +194,99 @@ public static class FastBinaryFormatter
         //byteBlock.Position = newPosition;
     }
 
-    private static void SerializeObject<TByteBlock, T>(ref TByteBlock byteBlock, in T graph, FastSerializerContext serializerContext)
-        where TByteBlock : IByteBlock
+    private static void SerializeObject<TWriter, T>(ref TWriter writer, in T graph, FastSerializerContext serializerContext)
+        where TWriter : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (graph is null)
         {
-            byteBlock.WriteNull();
+            writer.WriteNull();
             return;
         }
 
-        byteBlock.WriteNotNull();
+        writer.WriteNotNull();
         switch (graph)
         {
             case byte value:
                 {
-                    byteBlock.WriteByte(value);
+                    writer.WriteByte(value);
                     return;
                 }
             case sbyte value:
                 {
-                    byteBlock.WriteInt16(value);
+                    writer.WriteInt16(value);
                     return;
                 }
             case bool value:
                 {
-                    byteBlock.WriteBoolean(value);
+                    writer.WriteBoolean(value);
                     return;
                 }
             case short value:
                 {
-                    byteBlock.WriteInt16(value);
+                    writer.WriteInt16(value);
                     return;
                 }
             case ushort value:
                 {
-                    byteBlock.WriteUInt16(value);
+                    writer.WriteUInt16(value);
                     return;
                 }
             case int value:
                 {
-                    byteBlock.WriteInt32(value);
+                    writer.WriteInt32(value);
                     return;
                 }
             case uint value:
                 {
-                    byteBlock.WriteUInt32(value);
+                    writer.WriteUInt32(value);
                     return;
                 }
             case long value:
                 {
-                    byteBlock.WriteInt64(value);
+                    writer.WriteInt64(value);
                     return;
                 }
             case ulong value:
                 {
-                    byteBlock.WriteUInt64(value);
+                    writer.WriteUInt64(value);
                     return;
                 }
             case float value:
                 {
-                    byteBlock.WriteFloat(value);
+                    writer.WriteFloat(value);
                     return;
                 }
             case double value:
                 {
-                    byteBlock.WriteDouble(value);
+                    writer.WriteDouble(value);
                     return;
                 }
             case char value:
                 {
-                    byteBlock.WriteChar(value);
+                    writer.WriteChar(value);
                     return;
                 }
             case decimal value:
                 {
-                    byteBlock.WriteDecimal(value);
+                    writer.WriteDecimal(value);
                     return;
                 }
             case DateTime value:
                 {
-                    byteBlock.WriteDateTime(value);
+                    writer.WriteDateTime(value);
                     return;
                 }
             case TimeSpan value:
                 {
-                    byteBlock.WriteTimeSpan(value);
+                    writer.WriteTimeSpan(value);
                     return;
                 }
             case string value:
                 {
-                    byteBlock.WriteString(value);
+                    writer.WriteString(value);
                     return;
                 }
             case Enum _:
@@ -281,89 +296,89 @@ public static class FastBinaryFormatter
 
                     if (enumValType == typeof(byte))
                     {
-                        byteBlock.WriteByte(Convert.ToByte(graph));
+                        writer.WriteByte(Convert.ToByte(graph));
                     }
                     else if (enumValType == typeof(sbyte))
                     {
-                        byteBlock.WriteInt16(Convert.ToSByte(graph));
+                        writer.WriteInt16(Convert.ToSByte(graph));
                     }
                     else if (enumValType == typeof(short))
                     {
-                        byteBlock.WriteInt16(Convert.ToInt16(graph));
+                        writer.WriteInt16(Convert.ToInt16(graph));
                     }
                     else if (enumValType == typeof(ushort))
                     {
-                        byteBlock.WriteUInt16(Convert.ToUInt16(graph));
+                        writer.WriteUInt16(Convert.ToUInt16(graph));
                     }
                     else if (enumValType == typeof(int))
                     {
-                        byteBlock.WriteInt32(Convert.ToInt32(graph));
+                        writer.WriteInt32(Convert.ToInt32(graph));
                     }
                     else if (enumValType == typeof(uint))
                     {
-                        byteBlock.WriteUInt32(Convert.ToUInt32(graph));
+                        writer.WriteUInt32(Convert.ToUInt32(graph));
                     }
                     else if (enumValType == typeof(ulong))
                     {
-                        byteBlock.WriteUInt64(Convert.ToUInt64(graph));
+                        writer.WriteUInt64(Convert.ToUInt64(graph));
                     }
                     else
                     {
-                        byteBlock.WriteInt64(Convert.ToInt64(graph));
+                        writer.WriteInt64(Convert.ToInt64(graph));
                     }
                     return;
                 }
             case byte[] value:
                 {
-                    byteBlock.WriteBytesPackage(value);
+                    writer.WriteBytesPackage(value);
                     return;
                 }
             default:
                 {
-                    var startPosition = byteBlock.Position;
-                    byteBlock.Position += 4;
+                    var startPosition = writer.Position;
+                    writer.Position += 4;
                     var type = graph.GetType();
                     var serializeObject = serializerContext.GetSerializeObject(type);
                     if (serializeObject.Converter != null)
                     {
-                        serializeObject.Converter.Write(ref byteBlock, graph);
+                        serializeObject.Converter.Write(ref writer, graph);
                     }
                     else
                     {
                         switch (serializeObject.InstanceType)
                         {
                             case InstanceType.List:
-                                SerializeIListOrArray(ref byteBlock, (IEnumerable)graph, serializerContext);
+                                SerializeIListOrArray(ref writer, (IEnumerable)graph, serializerContext);
                                 break;
 
                             case InstanceType.Array:
                                 var array = (Array)(object)graph;
                                 if (array.Rank == 1)
                                 {
-                                    SerializeIListOrArray(ref byteBlock, array, serializerContext);
+                                    SerializeIListOrArray(ref writer, array, serializerContext);
                                 }
                                 else
                                 {
-                                    SerializeMutilDimensionalArray(ref byteBlock, array, serializerContext);
+                                    SerializeMutilDimensionalArray(ref writer, array, serializerContext);
                                 }
                                 break;
 
                             case InstanceType.Dictionary:
                                 {
-                                    var oldPosition = byteBlock.Position;
-                                    byteBlock.Position += 4;
+                                    var oldPosition = writer.Position;
+                                    writer.Position += 4;
                                     uint paramLen = 0;
 
                                     foreach (DictionaryEntry item in (IDictionary)graph)
                                     {
-                                        SerializeObject(ref byteBlock, item.Key, serializerContext);
-                                        SerializeObject(ref byteBlock, item.Value, serializerContext);
+                                        SerializeObject(ref writer, item.Key, serializerContext);
+                                        SerializeObject(ref writer, item.Value, serializerContext);
                                         paramLen++;
                                     }
-                                    var newPosition = byteBlock.Position;
-                                    byteBlock.Position = oldPosition;
-                                    byteBlock.Write(TouchSocketBitConverter.Default.GetBytes(paramLen));
-                                    byteBlock.Position = newPosition;
+                                    var newPosition = writer.Position;
+                                    writer.Position = oldPosition;
+                                    writer.WriteUInt32(paramLen);
+                                    writer.Position = newPosition;
                                 }
                                 break;
 
@@ -374,14 +389,14 @@ public static class FastBinaryFormatter
                                         var memberInfo = serializeObject.MemberInfos[i];
                                         if (serializeObject.EnableIndex)
                                         {
-                                            byteBlock.WriteByte(memberInfo.Index);
+                                            writer.WriteByte(memberInfo.Index);
                                         }
                                         else
                                         {
-                                            byteBlock.WriteString(memberInfo.Name, FixedHeaderType.Byte);
+                                            writer.WriteString(memberInfo.Name, FixedHeaderType.Byte);
                                         }
 
-                                        SerializeObject(ref byteBlock, serializeObject.MemberAccessor.GetValue(graph, memberInfo.Name), serializerContext);
+                                        SerializeObject(ref writer, serializeObject.MemberAccessor.GetValue(graph, memberInfo.Name), serializerContext);
                                     }
                                 }
 
@@ -389,11 +404,11 @@ public static class FastBinaryFormatter
                         }
                     }
 
-                    var endPosition = byteBlock.Position;
-                    byteBlock.Position = startPosition;
+                    var endPosition = writer.Position;
+                    writer.Position = startPosition;
 
-                    byteBlock.WriteInt32(endPosition - startPosition - 4);
-                    byteBlock.Position = endPosition;
+                    writer.WriteInt32(endPosition - startPosition - 4);
+                    writer.Position = endPosition;
                     break;
                 }
         }
@@ -446,42 +461,51 @@ public static class FastBinaryFormatter
     /// <summary>
     /// 使用指定的序列化上下文从字节块中反序列化出指定类型的对象。
     /// </summary>
-    /// <typeparam name="TByteBlock">实现IByteBlock接口的类型，用于读取字节数据。</typeparam>
+    /// <typeparam name="TReader">实现IByteBlock接口的类型，用于读取字节数据。</typeparam>
     /// <typeparam name="T">要反序列化为的类型。</typeparam>
-    /// <param name="byteBlock">包含序列化数据的字节块。</param>
+    /// <param name="reader">包含序列化数据的字节块。</param>
     /// <param name="serializerContext">用于反序列化的FastSerializerContext实例。</param>
     /// <returns>反序列化后的对象。</returns>
-    public static T Deserialize<TByteBlock, [DynamicallyAccessedMembers(DynamicallyAccessed)] T>(ref TByteBlock byteBlock, FastSerializerContext serializerContext = null)
-        where TByteBlock : IByteBlock
+    public static T Deserialize<TReader, [DynamicallyAccessedMembers(DynamicallyAccessed)] T>(ref TReader reader, FastSerializerContext serializerContext = null)
+        where TReader : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         // 调用重载的Deserialize方法，传入类型信息和序列化上下文进行反序列化。
-        return (T)Deserialize(ref byteBlock, typeof(T), serializerContext);
+        return (T)Deserialize(ref reader, typeof(T), serializerContext);
     }
 
     /// <summary>
     /// 使用指定的序列化上下文从字节块中反序列化对象。
     /// </summary>
-    /// <typeparam name="TByteBlock">实现IByteBlock接口的类型，用于读取字节数据。</typeparam>
-    /// <param name="byteBlock">包含序列化数据的字节块。</param>
+    /// <typeparam name="TReader">实现IByteBlock接口的类型，用于读取字节数据。</typeparam>
+    /// <param name="reader">包含序列化数据的字节块。</param>
     /// <param name="type">要反序列化为的类型。</param>
     /// <param name="serializerContext">用于反序列化的FastSerializerContext实例。</param>
     /// <returns>反序列化后的对象。</returns>
-    public static object Deserialize<TByteBlock>(ref TByteBlock byteBlock, [DynamicallyAccessedMembers(DynamicallyAccessed)] Type type, FastSerializerContext serializerContext = null)
-        where TByteBlock : IByteBlock
+    public static object Deserialize<TReader>(ref TReader reader, [DynamicallyAccessedMembers(DynamicallyAccessed)] Type type, FastSerializerContext serializerContext = null)
+        where TReader : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         // 检查数据流是否正确，如果不是，则抛出异常。
-        if (byteBlock.ReadByte() != 1)
+        if (reader.ReadByte() != 1)
         {
             throw new Exception("Fast反序列化数据流解析错误。");
         }
 
         serializerContext ??= s_defaultFastSerializerContext;
         // 使用提供的序列化上下文进行反序列化。
-        return Deserialize(type, ref byteBlock, serializerContext);
+        return Deserialize(type, ref reader, serializerContext);
     }
 
-    private static object Deserialize<TByteBlock>(Type type, ref TByteBlock byteBlock, FastSerializerContext serializerContext)
-        where TByteBlock : IByteBlock
+    private static object Deserialize<TReader>(Type type, ref TReader reader, FastSerializerContext serializerContext)
+        where TReader : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         var nullable = type.IsNullableType();
         if (nullable)
@@ -491,7 +515,7 @@ public static class FastBinaryFormatter
 
         #region Null
 
-        if (byteBlock.ReadIsNull())
+        if (reader.ReadIsNull())
         {
             return nullable ? null : type.GetDefault();
         }
@@ -506,29 +530,29 @@ public static class FastBinaryFormatter
 
             if (enumType == typeof(byte))
             {
-                return Enum.ToObject(type, byteBlock.ReadByte());
+                return Enum.ToObject(type, reader.ReadByte());
             }
             else if (enumType == typeof(sbyte))
             {
-                return Enum.ToObject(type, byteBlock.ReadInt16());
+                return Enum.ToObject(type, reader.ReadInt16());
             }
             else if (enumType == typeof(short))
             {
-                return Enum.ToObject(type, byteBlock.ReadInt16());
+                return Enum.ToObject(type, reader.ReadInt16());
             }
             else if (enumType == typeof(ushort))
             {
-                return Enum.ToObject(type, byteBlock.ReadUInt16());
+                return Enum.ToObject(type, reader.ReadUInt16());
             }
             else if (enumType == typeof(int))
             {
-                return Enum.ToObject(type, byteBlock.ReadInt32());
+                return Enum.ToObject(type, reader.ReadInt32());
             }
             else
             {
                 return enumType == typeof(uint)
-                    ? Enum.ToObject(type, byteBlock.ReadUInt32())
-                    : enumType == typeof(ulong) ? Enum.ToObject(type, byteBlock.ReadUInt64()) : Enum.ToObject(type, byteBlock.ReadInt64());
+                    ? Enum.ToObject(type, reader.ReadUInt32())
+                    : enumType == typeof(ulong) ? Enum.ToObject(type, reader.ReadUInt64()) : Enum.ToObject(type, reader.ReadInt64());
             }
         }
 
@@ -537,63 +561,63 @@ public static class FastBinaryFormatter
         switch (Type.GetTypeCode(type))
         {
             case TypeCode.Boolean:
-                return byteBlock.ReadBoolean();
+                return reader.ReadBoolean();
 
             case TypeCode.Char:
-                return byteBlock.ReadChar();
+                return reader.ReadChar();
 
             case TypeCode.SByte:
-                return (sbyte)byteBlock.ReadInt16();
+                return (sbyte)reader.ReadInt16();
 
             case TypeCode.Byte:
-                return byteBlock.ReadByte();
+                return reader.ReadByte();
 
             case TypeCode.Int16:
-                return byteBlock.ReadInt16();
+                return reader.ReadInt16();
 
             case TypeCode.UInt16:
-                return byteBlock.ReadUInt16();
+                return reader.ReadUInt16();
 
             case TypeCode.Int32:
-                return byteBlock.ReadInt32();
+                return reader.ReadInt32();
 
             case TypeCode.UInt32:
-                return byteBlock.ReadUInt32();
+                return reader.ReadUInt32();
 
             case TypeCode.Int64:
-                return byteBlock.ReadInt64();
+                return reader.ReadInt64();
 
             case TypeCode.UInt64:
-                return byteBlock.ReadUInt64();
+                return reader.ReadUInt64();
 
             case TypeCode.Single:
-                return byteBlock.ReadFloat();
+                return reader.ReadFloat();
 
             case TypeCode.Double:
-                return byteBlock.ReadDouble();
+                return reader.ReadDouble();
 
             case TypeCode.Decimal:
-                return byteBlock.ReadDecimal();
+                return reader.ReadDecimal();
 
             case TypeCode.DateTime:
-                return byteBlock.ReadDateTime();
+                return reader.ReadDateTime();
 
             case TypeCode.String:
-                return byteBlock.ReadString();
+                return reader.ReadString();
 
             default:
                 {
                     if (type == typeof(byte[]))
                     {
-                        return byteBlock.ReadBytesPackage();
+                        return reader.ReadBytesPackageSpan().ToArray();
                     }
                     else if (type.IsClass || type.IsStruct())
                     {
-                        var len = byteBlock.ReadInt32();
+                        var len = reader.ReadInt32();
                         var serializeObj = serializerContext.GetSerializeObject(type);
                         return serializeObj.Converter != null
-                            ? serializeObj.Converter.Read(ref byteBlock, type)
-                            : DeserializeClass(type, ref byteBlock, len, serializerContext);
+                            ? serializeObj.Converter.Read(ref reader, type)
+                            : DeserializeClass(type, ref reader, len, serializerContext);
                     }
                     else
                     {
@@ -603,7 +627,10 @@ public static class FastBinaryFormatter
         }
     }
 
-    private static object DeserializeClass<TByteBlock>(Type type, ref TByteBlock byteBlock, int length, FastSerializerContext serializerContext) where TByteBlock : IByteBlock
+    private static object DeserializeClass<TReader>(Type type, ref TReader reader, int length, FastSerializerContext serializerContext) where TReader : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         var serializeObject = serializerContext.GetSerializeObject(type);
 
@@ -614,67 +641,67 @@ public static class FastBinaryFormatter
                 {
                     instance = serializerContext.GetNewInstance(type);
 
-                    var index = byteBlock.Position + length;
+                    var index = reader.Position + length;
 
                     if (serializeObject.EnableIndex)
                     {
-                        while (byteBlock.Position < index)
+                        while (reader.Position < index)
                         {
-                            var propertyNameIndex = byteBlock.ReadByte();
+                            var propertyNameIndex = reader.ReadByte();
                             if (serializeObject.IsStruct)
                             {
                                 if (serializeObject.FastMemberInfoDicForIndex.TryGetValue(propertyNameIndex, out var property))
                                 {
-                                    var obj = Deserialize(property.Type, ref byteBlock, serializerContext);
+                                    var obj = Deserialize(property.Type, ref reader, serializerContext);
                                     property.SetValue(ref instance, obj);
                                 }
                                 else
                                 {
-                                    IgnoreLength(ref byteBlock, type);
+                                    IgnoreLength(ref reader, type);
                                 }
                             }
                             else
                             {
                                 if (serializeObject.FastMemberInfoDicForIndex.TryGetValue(propertyNameIndex, out var property))
                                 {
-                                    var obj = Deserialize(property.Type, ref byteBlock, serializerContext);
+                                    var obj = Deserialize(property.Type, ref reader, serializerContext);
                                     serializeObject.MemberAccessor.SetValue(instance, property.Name, obj);
                                 }
                                 else
                                 {
-                                    IgnoreLength(ref byteBlock, type);
+                                    IgnoreLength(ref reader, type);
                                 }
                             }
                         }
                     }
                     else
                     {
-                        while (byteBlock.Position < index)
+                        while (reader.Position < index)
                         {
-                            var propertyName = byteBlock.ReadString(FixedHeaderType.Byte);
+                            var propertyName = reader.ReadString(FixedHeaderType.Byte);
 
                             if (serializeObject.IsStruct)
                             {
                                 if (serializeObject.FastMemberInfoDicForName.TryGetValue(propertyName, out var property))
                                 {
-                                    var obj = Deserialize(property.Type, ref byteBlock, serializerContext);
+                                    var obj = Deserialize(property.Type, ref reader, serializerContext);
                                     property.SetValue(ref instance, obj);
                                 }
                                 else
                                 {
-                                    IgnoreLength(ref byteBlock, type);
+                                    IgnoreLength(ref reader, type);
                                 }
                             }
                             else
                             {
                                 if (serializeObject.FastMemberInfoDicForName.TryGetValue(propertyName, out var property))
                                 {
-                                    var obj = Deserialize(property.Type, ref byteBlock, serializerContext);
+                                    var obj = Deserialize(property.Type, ref reader, serializerContext);
                                     serializeObject.MemberAccessor.SetValue(instance, property.Name, obj);
                                 }
                                 else
                                 {
-                                    IgnoreLength(ref byteBlock, type);
+                                    IgnoreLength(ref reader, type);
                                 }
                             }
                         }
@@ -685,10 +712,10 @@ public static class FastBinaryFormatter
             case InstanceType.List:
                 {
                     instance = serializerContext.GetNewInstance(type);
-                    var paramLen = byteBlock.ReadUInt32();
+                    var paramLen = reader.ReadUInt32();
                     for (uint i = 0; i < paramLen; i++)
                     {
-                        var obj = Deserialize(serializeObject.ArgTypes[0], ref byteBlock, serializerContext);
+                        var obj = Deserialize(serializeObject.ArgTypes[0], ref reader, serializerContext);
                         serializeObject.AddMethod.Invoke(instance, new object[] { obj });
                     }
                     break;
@@ -698,12 +725,12 @@ public static class FastBinaryFormatter
                     var rank = serializeObject.Type.GetArrayRank();
                     if (rank == 1)
                     {
-                        var paramLen = byteBlock.ReadUInt32();
+                        var paramLen = reader.ReadUInt32();
                         var array = Array.CreateInstance(serializeObject.ArgTypes[0], paramLen);
 
                         for (uint i = 0; i < paramLen; i++)
                         {
-                            var obj = Deserialize(serializeObject.ArgTypes[0], ref byteBlock, serializerContext);
+                            var obj = Deserialize(serializeObject.ArgTypes[0], ref reader, serializerContext);
                             array.SetValue(obj, i);
                         }
                         instance = array;
@@ -713,7 +740,7 @@ public static class FastBinaryFormatter
                         var rankArray = new int[rank];
                         for (var i = 0; i < rank; i++)
                         {
-                            rankArray[i] = byteBlock.ReadInt32();
+                            rankArray[i] = reader.ReadInt32();
                         }
 
                         //var paramLen = (int)byteBlock.ReadUInt32();
@@ -726,7 +753,7 @@ public static class FastBinaryFormatter
                         //}
 
                         var indices = new int[rank];
-                        FillArrayRecursive(serializeObject, ref byteBlock, serializerContext, array, rankArray, indices, 0);
+                        FillArrayRecursive(serializeObject, ref reader, serializerContext, array, rankArray, indices, 0);
 
                         instance = array;
                     }
@@ -736,11 +763,11 @@ public static class FastBinaryFormatter
             case InstanceType.Dictionary:
                 {
                     instance = serializerContext.GetNewInstance(type);
-                    var paramLen = byteBlock.ReadUInt32();
+                    var paramLen = reader.ReadUInt32();
                     for (uint i = 0; i < paramLen; i++)
                     {
-                        var key = Deserialize(serializeObject.ArgTypes[0], ref byteBlock, serializerContext);
-                        var value = Deserialize(serializeObject.ArgTypes[1], ref byteBlock, serializerContext);
+                        var key = Deserialize(serializeObject.ArgTypes[0], ref reader, serializerContext);
+                        var value = Deserialize(serializeObject.ArgTypes[1], ref reader, serializerContext);
                         serializeObject.AddMethod.Invoke(instance, new object[] { key, value });
                     }
                     break;
@@ -753,13 +780,16 @@ public static class FastBinaryFormatter
         return instance;
     }
 
-    private static void FillArrayRecursive<TByteBlock>(SerializObject serializObject, ref TByteBlock byteBlock, FastSerializerContext serializerContext, Array array, int[] rankArray, int[] indices, int dimension)
-         where TByteBlock : IByteBlock
+    private static void FillArrayRecursive<TReader>(SerializObject serializObject, ref TReader reader, FastSerializerContext serializerContext, Array array, int[] rankArray, int[] indices, int dimension)
+         where TReader : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         if (dimension == rankArray.Length)
         {
             // 已经到达最后一维，进行赋值操作
-            var obj = Deserialize(serializObject.ArgTypes[0], ref byteBlock, serializerContext);
+            var obj = Deserialize(serializObject.ArgTypes[0], ref reader, serializerContext);
             array.SetValue(obj, indices);
             return;
         }
@@ -767,77 +797,81 @@ public static class FastBinaryFormatter
         for (var i = 0; i < rankArray[dimension]; i++)
         {
             indices[dimension] = i;
-            FillArrayRecursive(serializObject, ref byteBlock, serializerContext, array, rankArray, indices, dimension + 1);
+            FillArrayRecursive(serializObject, ref reader, serializerContext, array, rankArray, indices, dimension + 1);
         }
     }
 
-    private static void IgnoreLength<TByteBlock>(ref TByteBlock byteBlock, Type type) where TByteBlock : IByteBlock
+    private static void IgnoreLength<TReader>(ref TReader reader, Type type) 
+        where TReader : IByteBlockReader
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         switch (Type.GetTypeCode(type))
         {
             case TypeCode.Boolean:
-                byteBlock.Seek(1, SeekOrigin.Current);
+                reader.Position+=1;
                 break;
 
             case TypeCode.Char:
-                byteBlock.Seek(2, SeekOrigin.Current);
+                reader.Position+=2;
                 break;
 
             case TypeCode.SByte:
-                byteBlock.Seek(2, SeekOrigin.Current);
+                reader.Position += 2;
                 break;
 
             case TypeCode.Byte:
-                byteBlock.Seek(1, SeekOrigin.Current);
+                reader.Position += 1;
                 break;
 
             case TypeCode.Int16:
-                byteBlock.Seek(2, SeekOrigin.Current);
+                reader.Position += 2;
                 break;
 
             case TypeCode.UInt16:
-                byteBlock.Seek(2, SeekOrigin.Current);
+                reader.Position += 2;
                 break;
 
             case TypeCode.Int32:
-                byteBlock.Seek(4, SeekOrigin.Current);
+                reader.Position += 4;
                 break;
 
             case TypeCode.UInt32:
-                byteBlock.Seek(4, SeekOrigin.Current);
+                reader.Position += 4;
                 break;
 
             case TypeCode.Int64:
-                byteBlock.Seek(8, SeekOrigin.Current);
+                reader.Position += 8;
                 break;
 
             case TypeCode.UInt64:
-                byteBlock.Seek(8, SeekOrigin.Current);
+                reader.Position += 8;
                 break;
 
             case TypeCode.Single:
-                byteBlock.Seek(4, SeekOrigin.Current);
+                reader.Position += 4;
                 break;
 
             case TypeCode.Double:
-                byteBlock.Seek(8, SeekOrigin.Current);
+                reader.Position += 8;
                 break;
 
             case TypeCode.Decimal:
-                byteBlock.Seek(16, SeekOrigin.Current);
+                reader.Position += 16;
                 break;
 
             case TypeCode.DateTime:
-                byteBlock.Seek(8, SeekOrigin.Current);
+                reader.Position += 8;
                 break;
 
             case TypeCode.String:
-                byteBlock.ReadString();
+                reader.ReadString();
                 break;
 
             default:
-                var len = byteBlock.ReadInt32();
-                byteBlock.Seek(len, SeekOrigin.Current);
+                var len = reader.ReadInt32();
+                reader.Position += len;
                 break;
         }
     }

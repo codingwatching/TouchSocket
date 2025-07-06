@@ -10,6 +10,7 @@
 //  感谢您的下载和使用
 //------------------------------------------------------------------------------
 
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -59,21 +60,22 @@ public sealed class NatTargetClient : TcpClientBase, ITcpConnectableClient, ICli
     }
 
     /// <inheritdoc/>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     public Task SendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         return base.ProtectedSendAsync(transferBytes);
     }
 
     /// <inheritdoc/>
-    public Task SendAsync(ReadOnlyMemory<byte> memory)
+    public Task SendAsync(ReadOnlyMemory<byte> memory,CancellationToken token=default)
     {
-        return base.ProtectedSendAsync(memory);
+        return base.ProtectedSendAsync(memory, token);
     }
 
     /// <inheritdoc/>
-    public Task SendAsync(IRequestInfo requestInfo)
+    public Task SendAsync(IRequestInfo requestInfo, CancellationToken token = default)
     {
-        return this.ProtectedSendAsync(requestInfo);
+        return this.ProtectedSendAsync(requestInfo, token);
     }
 
     /// <inheritdoc/>

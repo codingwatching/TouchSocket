@@ -128,15 +128,15 @@ public abstract class HttpBase : IRequestInfo
         return this.m_httpBlockSegment.InternalInputAsync(memory);
     }
 
-    internal bool ParsingHeader<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    internal bool ParsingHeader<TReader>(ref TReader reader) where TReader : IByteBlockReader
     {
-        var index = byteBlock.Span.Slice(byteBlock.Position).IndexOf(StringExtension.Default_RNRN_Utf8Span);
+        var index = reader.Span.Slice(reader.Position).IndexOf(StringExtension.Default_RNRN_Utf8Span);
         if (index > 0)
         {
-            var headerLength = index - byteBlock.Position + 2;
-            this.ReadHeaders(byteBlock.Span.Slice(byteBlock.Position, headerLength));
-            byteBlock.Position += headerLength;
-            byteBlock.Position += 2;
+            var headerLength = index - reader.Position + 2;
+            this.ReadHeaders(reader.Span.Slice(reader.Position, headerLength));
+            reader.Position += headerLength;
+            reader.Position += 2;
             return true;
         }
         else

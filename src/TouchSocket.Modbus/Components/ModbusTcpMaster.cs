@@ -49,7 +49,7 @@ public class ModbusTcpMaster : TcpClientBase, IModbusTcpMaster
             try
             {
                 modbusTcpRequest.Build(ref valueByteBlock);
-                await this.ProtectedSendAsync(valueByteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                await this.ProtectedSendAsync(valueByteBlock.Memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             }
             finally
             {

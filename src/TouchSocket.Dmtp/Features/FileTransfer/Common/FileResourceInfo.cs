@@ -64,34 +64,6 @@ public class FileResourceInfo : PackageBase
         this.PrivateCreate(fileInfo, fileSectionSize);
     }
 
-    /// <summary>
-    /// 从内存初始化资源
-    /// </summary>
-    /// <param name="byteBlock">包含资源信息的字节块</param>
-    [Obsolete($"此方法已被弃用，请使用{nameof(FileResourceInfo.Create)}")]
-    public FileResourceInfo(in IByteBlock byteBlock)
-    {
-        // 读取文件区块大小
-        this.FileSectionSize = byteBlock.ReadInt32();
-        // 读取资源句柄
-        this.ResourceHandle = byteBlock.ReadInt32();
-        // 读取文件信息
-        this.FileInfo = byteBlock.ReadPackage<RemoteFileInfo>();
-        // 读取文件区块数量
-        var len = byteBlock.ReadInt32();
-
-        // 根据读取的文件区块数量，创建相应的FileSection数组
-        var fileSections = new FileSection[len];
-        // 遍历每个文件区块，并从字节块中读取具体信息
-        for (var i = 0; i < len; i++)
-        {
-            fileSections[i] = byteBlock.ReadPackage<FileSection>();
-        }
-
-        // 将读取的文件区块信息数组赋值给成员变量
-        this.m_fileSections = fileSections;
-    }
-
     private FileResourceInfo()
     {
     }
@@ -150,7 +122,18 @@ public class FileResourceInfo : PackageBase
         // 读取资源句柄
         fileResourceInfo.ResourceHandle = byteBlock.ReadInt32();
         // 读取文件信息
-        fileResourceInfo.FileInfo = byteBlock.ReadPackage<RemoteFileInfo>();
+
+        RemoteFileInfo remoteFileInfo;
+        if (byteBlock.ReadIsNull())
+        {
+            remoteFileInfo = null;
+        }
+        else
+        {
+            remoteFileInfo = new RemoteFileInfo();
+            remoteFileInfo.Unpackage(ref byteBlock);
+        }
+        fileResourceInfo.FileInfo = remoteFileInfo;
         // 读取文件区块数量
         var len = byteBlock.ReadInt32();
 
@@ -159,7 +142,17 @@ public class FileResourceInfo : PackageBase
         // 遍历每个文件区块，并从字节块中读取具体信息
         for (var i = 0; i < len; i++)
         {
-            fileSections[i] = byteBlock.ReadPackage<FileSection>();
+            FileSection fileSection;
+            if (byteBlock.ReadIsNull())
+            {
+                fileSection = default;
+            }
+            else
+            {
+                fileSection = new FileSection();
+                fileSection.Unpackage(ref byteBlock);
+            }
+            fileSections[i] = fileSection;
         }
 
         // 将读取的文件区块信息数组赋值给成员变量
@@ -209,10 +202,18 @@ public class FileResourceInfo : PackageBase
     }
 
     /// <inheritdoc/>
-    public override void Package<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Package<TWriter>(ref TWriter writer)
     {
-        byteBlock.WriteInt32(this.ResourceHandle);
-        byteBlock.WritePackage(this.FileInfo);
+        writer.WriteInt32(this.ResourceHandle);
+        if (this.FileInfo is null)
+        {
+            writer.WriteNull();
+        }
+        else
+        {
+            writer.WriteNotNull();
+            this.FileInfo.Package(ref writer);
+        }
     }
 
     /// <summary>
@@ -241,13 +242,30 @@ public class FileResourceInfo : PackageBase
         // 写入资源句柄，用于标识文件资源。
         byteBlock.WriteInt32(this.ResourceHandle);
         // 写入文件信息包，包含文件的基本信息。
-        byteBlock.WritePackage(this.FileInfo);
+        if (this.FileInfo is null)
+        {
+            byteBlock.WriteNull();
+        }
+        else
+        {
+            byteBlock.WriteNotNull();
+            this.FileInfo.Package(ref byteBlock);
+        }
         // 写入文件分区数组的长度，以便在加载时正确创建分区。
         byteBlock.WriteInt32(this.m_fileSections.Length);
         // 遍历文件分区数组，将每个分区的信息写入字节块。
         foreach (var item in this.m_fileSections)
         {
-            byteBlock.WritePackage(item);
+            // 如果分区为null，则写入null标记；否则，写入分区的包信息。
+            if (item is null)
+            {
+                byteBlock.WriteNull();
+            }
+            else
+            {
+                byteBlock.WriteNotNull();
+                item.Package(ref byteBlock);
+            }
         }
     }
 
@@ -275,10 +293,18 @@ public class FileResourceInfo : PackageBase
     }
 
     /// <inheritdoc/>
-    public override void Unpackage<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Unpackage<TReader>(ref TReader reader)
     {
-        this.ResourceHandle = byteBlock.ReadInt32();
-        this.FileInfo = byteBlock.ReadPackage<RemoteFileInfo>();
+        this.ResourceHandle = reader.ReadInt32();
+        if (reader.ReadIsNull())
+        {
+            this.FileInfo = null;
+        }
+        else
+        {
+            this.FileInfo = new RemoteFileInfo();
+            this.FileInfo.Unpackage(ref reader);
+        }
     }
 
     private void PrivateCreate(RemoteFileInfo fileInfo, long fileSectionSize)

@@ -11,6 +11,7 @@
 //------------------------------------------------------------------------------
 
 using System;
+using System.Buffers;
 using System.Text;
 using TouchSocket.Core;
 
@@ -103,7 +104,11 @@ public class WSDataFrame : DisposableObject, IRequestInfo, IRequestInfoBuilder, 
     public bool RSV3 { get; set; }
 
     /// <inheritdoc/>
-    public void Build<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public void Build<TWriter>(ref TWriter writer)
+        where TWriter : IByteBlockWriter
+#if AllowsRefStruct
+,allows ref struct
+#endif
     {
         var memory = this.PayloadData == null ? ReadOnlyMemory<byte>.Empty : this.PayloadData.Memory;
         int payloadLength;
@@ -140,32 +145,30 @@ public class WSDataFrame : DisposableObject, IRequestInfo, IRequestInfoBuilder, 
 
         header = (header << 7) + payloadLength;
 
-        byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes((ushort)header));
+        writer.WriteUInt16((ushort)header, EndianType.Big);
 
         if (payloadLength > 125)
         {
-            byteBlock.Write(extLen);
+            writer.Write(extLen);
         }
 
         if (this.Mask)
         {
-            byteBlock.Write(new ReadOnlySpan<byte>(this.MaskingKey, 0, 4));
+            writer.Write(new ReadOnlySpan<byte>(this.MaskingKey, 0, 4));
         }
 
         if (payloadLength > 0)
         {
             if (this.Mask)
             {
-                if (byteBlock.Capacity < byteBlock.Position + length)
-                {
-                    byteBlock.SetCapacity(byteBlock.Position + length, true);
-                }
-                WSTools.DoMask(byteBlock.TotalMemory.Span.Slice(byteBlock.Position), memory.Span, this.MaskingKey);
-                byteBlock.SetLength(byteBlock.Position + length);
+                var span = writer.GetSpan(length);
+
+                WSTools.DoMask(span, memory.Span, this.MaskingKey);
+                writer.Advance(length);
             }
             else
             {
-                byteBlock.Write(memory.Span);
+                writer.Write(memory.Span);
             }
         }
     }

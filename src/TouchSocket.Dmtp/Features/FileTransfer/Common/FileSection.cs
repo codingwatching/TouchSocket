@@ -45,23 +45,23 @@ public class FileSection : PackageBase
     public int Length { get; internal set; }
 
     /// <inheritdoc/>
-    public override void Package<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Package<TWriter>(ref TWriter writer)
     {
-        byteBlock.WriteByte((byte)this.Status);
-        byteBlock.WriteInt32(this.ResourceHandle);
-        byteBlock.WriteInt64(this.Offset);
-        byteBlock.WriteInt32(this.Length);
-        byteBlock.WriteInt32(this.Index);
+        writer.WriteByte((byte)this.Status);
+        writer.WriteInt32(this.ResourceHandle);
+        writer.WriteInt64(this.Offset);
+        writer.WriteInt32(this.Length);
+        writer.WriteInt32(this.Index);
     }
 
     /// <inheritdoc/>
-    public override void Unpackage<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Unpackage<TReader>(ref TReader reader)
     {
-        this.Status = (FileSectionStatus)byteBlock.ReadByte();
-        this.ResourceHandle = byteBlock.ReadInt32();
-        this.Offset = byteBlock.ReadInt64();
-        this.Length = byteBlock.ReadInt32();
-        this.Index = byteBlock.ReadInt32();
+        this.Status = (FileSectionStatus)reader.ReadByte();
+        this.ResourceHandle = reader.ReadInt32();
+        this.Offset = reader.ReadInt64();
+        this.Length = reader.ReadInt32();
+        this.Index = reader.ReadInt32();
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public class FileSection : PackageBase
     /// <returns>如果待比较的文件段对象的基本信息与当前对象一致，则返回<see langword="true"/>；否则返回<see langword="false"/>。</returns>
     public bool Equals(FileSection fileSection)
     {
-        // 检查待比较的文件段对象是否为null
+        // 检查待比较的文件段对象是否为<see langword="null"/>
         if (fileSection == null)
         {
             // 如果是null，直接返回<see langword="false"/>，因为无法比较

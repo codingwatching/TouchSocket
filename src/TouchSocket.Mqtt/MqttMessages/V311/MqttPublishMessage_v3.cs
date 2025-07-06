@@ -16,7 +16,7 @@ using TouchSocket.Core;
 namespace TouchSocket.Mqtt;
 
 /// <summary>
-/// 表示一个MQTT发布消息。
+/// 表示一个Mqtt发布消息。
 /// </summary>
 public sealed partial class MqttPublishMessage : MqttIdentifierMessage
 {
@@ -95,7 +95,7 @@ public sealed partial class MqttPublishMessage : MqttIdentifierMessage
     }
 
     private ReadOnlyMemory<byte> ReadPayload<TByteBlock>(ref TByteBlock byteBlock)
-        where TByteBlock : IByteBlock
+        where TByteBlock : IByteBlockReader
     {
         var payloadLength = this.EndPosition - byteBlock.Position;
         var payload = byteBlock.Memory.Slice(byteBlock.Position, payloadLength);

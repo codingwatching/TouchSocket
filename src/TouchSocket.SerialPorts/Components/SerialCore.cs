@@ -115,12 +115,12 @@ internal class SerialCore : DisposableObject, IValueTaskSource<SerialOperationRe
         this.m_core.OnCompleted(continuation, state, token, flags);
     }
 
-    public async Task<SerialOperationResult> ReceiveAsync(ByteBlock byteBlock)
+    public async Task<SerialOperationResult> ReceiveAsync(ByteBlock byteBlock,CancellationToken token)
     {
         if (this.m_streamAsync)
         {
+            this.m_cancellationTokenSource.Token.ThrowIfCancellationRequested();
             // 如果是异步流，则使用异步读取方式
-            var token = this.m_cancellationTokenSource.Token;
             var stream = this.m_serialPort.BaseStream;
             var memory = byteBlock.TotalMemory;
             var r = await stream.ReadAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
@@ -133,9 +133,9 @@ internal class SerialCore : DisposableObject, IValueTaskSource<SerialOperationRe
         }
     }
 
-    public virtual async Task SendAsync(ReadOnlyMemory<byte> memory)
+    public virtual async Task SendAsync(ReadOnlyMemory<byte> memory, CancellationToken token = default)
     {
-        var token = this.m_cancellationTokenSource.Token;
+        this.m_cancellationTokenSource.Token.ThrowIfCancellationRequested();
         await this.m_semaphoreForSend.WaitAsync(token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         try
         {

@@ -44,8 +44,8 @@ public interface IDmtpRedisActor : ICacheAsync<string, byte[]>, IActor
     /// <param name="key">缓存项的键。</param>
     /// <param name="value">缓存项的值。</param>
     /// <param name="duration">缓存项的过期时间，单位为毫秒。默认为60000毫秒（1分钟）。</param>
-    /// <returns>一个Task对象，表示异步操作的结果。结果为true表示添加成功，false表示失败（例如，键已经存在）。</returns>
-    /// <exception cref="ArgumentNullException">如果键或值为null，则抛出该异常。</exception>
+    /// <returns>一个Task对象，表示异步操作的结果。结果为<see langword="true"/>表示添加成功，false表示失败（例如，键已经存在）。</returns>
+    /// <exception cref="ArgumentNullException">如果键或值为<see langword="null"/>，则抛出该异常。</exception>
     /// <exception cref="TimeoutException">如果异步操作超时，则抛出该异常。</exception>
     /// <exception cref="Exception">如果发生其他异常，则抛出该异常。</exception>
     Task<bool> AddAsync<TValue>(string key, TValue value, int duration = 60000);

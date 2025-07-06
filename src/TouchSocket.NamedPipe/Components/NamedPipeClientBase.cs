@@ -53,6 +53,7 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
     private InternalReceiver m_receiver;
     private SingleStreamDataHandlingAdapter m_dataHandlingAdapter;
     private readonly Lock m_lockForAbort = new Lock();
+    private CancellationTokenSource m_tokenSourceForOnline;
     #endregion 变量
 
     #region 事件
@@ -152,6 +153,9 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
     /// <inheritdoc/>
     public virtual bool Online => this.m_online;
 
+    /// <inheritdoc/>
+    public CancellationToken  ClosedToken => m_tokenSourceForOnline.GetTokenOrCanceled();
+
     #endregion 属性
 
     #region 断开操作
@@ -172,7 +176,8 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
 
                 this.m_dataHandlingAdapter.SafeDispose();
                 this.m_dataHandlingAdapter = default;
-
+                this.m_tokenSourceForOnline.SafeCancel();
+                this.m_tokenSourceForOnline.SafeDispose();
                 _ = EasyTask.SafeRun(this.PrivateOnNamedPipeClosed, (new ClosedEventArgs(manual, msg), this.m_receiveTask, this.m_receiver));
             }
         }
@@ -226,7 +231,7 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
     /// 建立管道的连接。
     /// </summary>
     /// <param name="millisecondsTimeout"></param>
-    /// <param name="token"></param>
+    /// <param name="token">可取消令箭</param>
     /// <exception cref="ObjectDisposedException"></exception>
     /// <exception cref="ArgumentNullException"></exception>
     /// <exception cref="Exception"></exception>
@@ -252,22 +257,18 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
             var namedPipe = CreatePipeClient(serverName, pipeName);
             await this.PrivateOnNamedPipeConnecting(new ConnectingEventArgs()).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
 
-#if NET45
-            namedPipe.Connect(millisecondsTimeout);
-#else
             await namedPipe.ConnectAsync(millisecondsTimeout, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-#endif
 
-            if (namedPipe.IsConnected)
+            if (!namedPipe.IsConnected)
             {
-                this.m_pipeStream = namedPipe;
-                this.m_online = true;
-                this.m_receiveTask = EasyTask.Run(this.BeginReceive);
-                _ = EasyTask.SafeRun(this.PrivateOnNamedPipeConnected, new ConnectedEventArgs());
-                return;
+                ThrowHelper.ThrowException(TouchSocketCoreResource.UnknownError);
             }
 
-            ThrowHelper.ThrowException(TouchSocketCoreResource.UnknownError);
+            this.m_tokenSourceForOnline = new CancellationTokenSource();
+            this.m_pipeStream = namedPipe;
+            this.m_online = true;
+            this.m_receiveTask = EasyTask.SafeRun(this.BeginReceive, this.m_tokenSourceForOnline.Token);
+            _ = EasyTask.SafeRun(this.PrivateOnNamedPipeConnected, new ConnectedEventArgs());
         }
         finally
         {
@@ -361,7 +362,7 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
         return pipeClient;
     }
 
-    private async Task BeginReceive()
+    private async Task BeginReceive(CancellationToken token)
     {
         while (true)
         {
@@ -369,7 +370,7 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
             {
                 try
                 {
-                    var r = await this.m_pipeStream.ReadAsync(byteBlock.TotalMemory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    var r = await this.m_pipeStream.ReadAsync(byteBlock.TotalMemory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                     if (r == 0)
                     {
                         this.Abort(false, "远程终端主动关闭");
@@ -431,7 +432,7 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
         this.m_receiveBufferSize = TouchSocketCoreUtility.HitBufferLength(value);
     }
 
-    private async Task PrivateHandleReceivedData(ByteBlock byteBlock, IRequestInfo requestInfo)
+    private async Task PrivateHandleReceivedData(IByteBlockReader byteBlock, IRequestInfo requestInfo)
     {
         var receiver = this.m_receiver;
         if (receiver != null)
@@ -468,15 +469,15 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
 
     #region 直接发送
     /// <inheritdoc/>
-    protected async Task ProtectedDefaultSendAsync(ReadOnlyMemory<byte> memory)
+    protected async Task ProtectedDefaultSendAsync(ReadOnlyMemory<byte> memory, CancellationToken token)
     {
         this.ThrowIfDisposed();
         this.ThrowIfClientNotConnected();
         await this.OnNamedPipeSending(memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+        await this.m_semaphoreSlimForSend.WaitAsync(token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
         try
         {
-            await this.m_semaphoreSlimForSend.WaitAsync().ConfigureAwait(EasyTask.ContinueOnCapturedContext);
-            await this.m_pipeStream.WriteAsync(memory, CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+            await this.m_pipeStream.WriteAsync(memory, token).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
             this.LastSentTime = DateTimeOffset.UtcNow;
         }
         finally
@@ -493,18 +494,19 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
     /// 异步发送数据，根据是否配置了数据处理适配器来决定数据的发送方式。
     /// </summary>
     /// <param name="memory">待发送的字节内存。</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns>一个异步任务，表示发送操作。</returns>
-    protected Task ProtectedSendAsync(in ReadOnlyMemory<byte> memory)
+    protected Task ProtectedSendAsync(in ReadOnlyMemory<byte> memory, CancellationToken token)
     {
         // 如果未配置数据处理适配器，则使用默认的发送方式。
         if (this.m_dataHandlingAdapter == null)
         {
-            return this.ProtectedDefaultSendAsync(memory);
+            return this.ProtectedDefaultSendAsync(memory,token);
         }
         else
         {
             // 如果配置了数据处理适配器，则使用适配器指定的发送方式。
-            return this.m_dataHandlingAdapter.SendInputAsync(memory);
+            return this.m_dataHandlingAdapter.SendInputAsync(memory,token);
         }
     }
 
@@ -513,17 +515,18 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
     /// 异步安全发送请求信息。
     /// </summary>
     /// <param name="requestInfo">请求信息对象，包含要发送的数据。</param>
+    /// <param name="token">可取消令箭</param>
     /// <returns>返回一个任务，表示异步操作的结果。</returns>
     /// <remarks>
     /// 此方法用于在发送请求之前验证是否可以发送请求信息，
     /// 并通过<see cref="DataHandlingAdapter"/>适配器安全处理发送过程。
     /// </remarks>
-    protected Task ProtectedSendAsync(IRequestInfo requestInfo)
+    protected Task ProtectedSendAsync(IRequestInfo requestInfo, CancellationToken token)
     {
         // 验证当前状态是否允许发送请求信息，如果不允许则抛出异常。
         this.ThrowIfCannotSendRequestInfo();
         // 调用ProtectedDataHandlingAdapter的SendInputAsync方法异步发送请求信息。
-        return this.m_dataHandlingAdapter.SendInputAsync(requestInfo);
+        return this.m_dataHandlingAdapter.SendInputAsync(requestInfo, token);
     }
 
     /// <summary>
@@ -533,6 +536,7 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
     /// </summary>
     /// <param name="transferBytes">待发送的字节数据列表，每个元素包含要传输的字节片段。</param>
     /// <returns>发送任务。</returns>
+    [Obsolete("该接口已被弃用，请使用SendAsync直接代替")]
     protected async Task ProtectedSendAsync(IList<ArraySegment<byte>> transferBytes)
     {
         // 检查ProtectedDataHandlingAdapter是否已设置且支持拼接发送
@@ -556,12 +560,12 @@ public abstract class NamedPipeClientBase : SetupConfigObject, INamedPipeSession
                 if (this.m_dataHandlingAdapter == null)
                 {
                     // 如果未设置ProtectedDataHandlingAdapter，使用默认发送方法
-                    await this.ProtectedDefaultSendAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    await this.ProtectedDefaultSendAsync(byteBlock.Memory,CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                 }
                 else
                 {
                     // 如果已设置ProtectedDataHandlingAdapter但不支持拼接发送，使用Adapter的发送方法
-                    await this.m_dataHandlingAdapter.SendInputAsync(byteBlock.Memory).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
+                    await this.m_dataHandlingAdapter.SendInputAsync(byteBlock.Memory,CancellationToken.None).ConfigureAwait(EasyTask.ContinueOnCapturedContext);
                 }
             }
         }
