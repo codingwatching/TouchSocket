@@ -18,6 +18,55 @@ import Highlight from '@site/src/components/Highlight.js';
 
 :::
 
+## v3.2.0
+
+**更新日期：** 2025.6.24
+
+**更新描述：**
+
+此次升级可能会有部分代码不兼容项，请在升级前做好备份，并且详细阅读[3.2升级指南](https://gitee.com/RRQM_Home/TouchSocket/issues/ICIJ0B)。
+
+此次升级`Dmtp`、`IPackage`、`FastBinaryFormatter`等部分定制组件在运行时**不完全兼容3.1**，所以最好在升级时，同步升级通信对端。
+
+其他组件在运行时，理论上没有不兼容项。
+
+如果在升级时遇到问题，请在交流群直接提问。或者在[3.2升级指南](https://gitee.com/RRQM_Home/TouchSocket/issues/ICIJ0B)中直接回复。
+
+:::danger 注意
+
+本次改动移除对.Net45的支持，且以后也不会再回退支持。
+
+:::  
+
+**更新详情：**
+
+**更新详情：**
+
+#### All
+
+- &nbsp;<Tag>优化</Tag> 全系尽量减少数组的使用，大多数合并为`ReadOnlyMemory<T>`和`ReadOnlySpan<T>`。
+- &nbsp;<Tag>优化</Tag> 全系添加`CancellationToken`机制。
+
+#### TouchSocket.Core
+
+- &nbsp;<Tag>优化</Tag> `ByteBlock`和相关内存池模块。支持`Memory<byte>`直接入参。
+- &nbsp;<Tag>优化</Tag> `TouchSocketBitConverter`一系列转换方法。
+- &nbsp;<Tag>新增</Tag> `ByteBlockReader`和`ByteBlockWriter`等结构体类型的读写器。
+- &nbsp;<Tag>调整</Tag> `ByteBlock`和相关内存池模块接口。由`IByteBlock`拆分为`IByteBlockReader`和`IByteBlockWriter`。
+
+#### TouchSocket.Sockets
+
+- &nbsp;<Tag>优化</Tag> 接收和发送性能。
+- &nbsp;<Tag>新增</Tag> `BufferedTcpClient`可以原生tcp实现异步阻塞式接收。
+- &nbsp;<Tag>调整</Tag> `ByteBlock`在接收和发送时的读写时，被拆分`IByteBlockReader`和`IByteBlockWriter`。
+
+
+***
+
+<details>
+<summary>v3.1</summary>
+<div>
+
 ## v3.1.9(10)(11)
 
 **更新日期：** 2025.6.24
@@ -53,10 +102,6 @@ import Highlight from '@site/src/components/Highlight.js';
 - &nbsp;<Tag>新增</Tag> `PlcObject`组件。
 
 ***
-
-<details>
-<summary>v3.1</summary>
-<div>
 
 
 ## v3.1.8
