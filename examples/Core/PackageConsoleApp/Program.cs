@@ -42,7 +42,7 @@ internal class Program
             {
                 myClass.Package(ref byteBlock);//打包，相当于序列化
 
-                byteBlock.Seek(0);//将流位置重置为0
+                byteBlock.SeekToStart();//将流位置重置为0
 
                 var myNewClass = new MyPackage();
                 myNewClass.Unpackage(ref byteBlock);//解包，相当于反序列化
@@ -75,7 +75,7 @@ internal class Program
             {
                 myClass.Package(ref byteBlock);//打包，相当于序列化
 
-                byteBlock.Seek(0);//将流位置重置为0
+                byteBlock.SeekToStart();//将流位置重置为0
 
                 var myNewClass = new MyGeneratorPackage();
                 myNewClass.Unpackage(ref byteBlock);//解包，相当于反序列化
@@ -158,74 +158,78 @@ internal class MyPackage : PackageBase
     public List<int> P5 { get; set; }
     public Dictionary<int, MyClassModel> P6 { get; set; }
 
-    public override void Package<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Package<TBytesWriter>(ref TBytesWriter writer)
     {
-        //基础类型直接写入。
-        byteBlock.WriteInt32(this.P1);
-        byteBlock.WriteString(this.P2);
-        byteBlock.WriteChar(this.P3);
-        byteBlock.WriteDouble(this.P4);
-
-        //集合类型，可以先判断是否为null
-        byteBlock.WriteIsNull(this.P5);
-        if (this.P5 != null)
+        writer.WriteInt32(P1);
+        writer.WriteString(P2);
+        writer.WriteChar(P3);
+        writer.WriteDouble(P4);
+        writer.WriteIsNull(P5);
+        if (P5 != null)
         {
-            //如果不为null
-            //就先写入集合长度
-            //然后遍历将每个项写入
-            byteBlock.WriteInt32(this.P5.Count);
-            foreach (var item in this.P5)
+            writer.WriteVarUInt32((uint)P5.Count);
+            foreach (var item0 in P5)
             {
-                byteBlock.WriteInt32(item);
+                writer.WriteInt32(item0);
             }
         }
 
-        //字典类型，可以先判断是否为null
-        byteBlock.WriteIsNull(this.P6);
-        if (this.P6 != null)
+        writer.WriteIsNull(P6);
+        if (P6 != null)
         {
-            //如果不为null
-            //就先写入字典长度
-            //然后遍历将每个项，按键、值写入
-            byteBlock.WriteInt32(this.P6.Count);
-            foreach (var item in this.P6)
+            writer.WriteVarUInt32((uint)P6.Count);
+            foreach (var item1 in P6)
             {
-                byteBlock.WriteInt32(item.Key);
-                byteBlock.WritePackage(item.Value);//因为值MyClassModel实现了IPackage，所以可以直接写入
+                writer.WriteInt32(item1.Key);
+                if (item1.Value != null)
+                {
+                    writer.WriteNotNull();
+                    item1.Value.Package(ref writer);
+                }
+                else
+                {
+                    writer.WriteNull();
+                }
             }
         }
     }
 
-    public override void Unpackage<TByteBlock>(ref TByteBlock byteBlock)
+    public override void Unpackage<TBytesReader>(ref TBytesReader reader)
     {
-        //基础类型按序读取。
-        this.P1 = byteBlock.ReadInt32();
-        this.P2 = byteBlock.ReadString();
-        this.P3 = byteBlock.ReadChar();
-        this.P4 = byteBlock.ReadDouble();
-
-        var isNull = byteBlock.ReadIsNull();
-        if (!isNull)
+        P1 = reader.ReadInt32();
+        P2 = reader.ReadString();
+        P3 = reader.ReadChar();
+        P4 = reader.ReadDouble();
+        if (!reader.ReadIsNull())
         {
-            var count = byteBlock.ReadInt32();
-            var list = new List<int>(count);
-            for (var i = 0; i < count; i++)
+            var item0 = (int)reader.ReadVarUInt32();
+            var item1 = new System.Collections.Generic.List<int>(item0);
+            for (var item2 = 0; item2 < item0; item2++)
             {
-                list.Add(byteBlock.ReadInt32());
+                item1.Add(reader.ReadInt32());
             }
-            this.P5 = list;
+
+            P5 = item1;
         }
 
-        isNull = byteBlock.ReadIsNull();//复用前面的变量，省的重新声明
-        if (!isNull)
+        if (!reader.ReadIsNull())
         {
-            var count = byteBlock.ReadInt32();
-            var dic = new Dictionary<int, MyClassModel>(count);
-            for (var i = 0; i < count; i++)
+            var item3 = (int)reader.ReadVarUInt32();
+            var item4 = new System.Collections.Generic.Dictionary<int, PackageConsoleApp.MyClassModel>(item3);
+            for (var item5 = 0; item5 < item3; item5++)
             {
-                dic.Add(byteBlock.ReadInt32(), byteBlock.ReadPackage<MyClassModel>());
+                var item6 = reader.ReadInt32();
+                PackageConsoleApp.MyClassModel item7 = default;
+                if (!reader.ReadIsNull())
+                {
+                    item7 = new PackageConsoleApp.MyClassModel();
+                    item7.Unpackage(ref reader);
+                }
+
+                item4.Add(item6, item7);
             }
-            this.P6 = dic;
+
+            P6 = item4;
         }
     }
 }
@@ -363,44 +367,6 @@ public class MyArrayClass : PackageBase
 
             //赋值
             this.P5 = array;
-        }
-    }
-}
-
-public class MyDictionaryClass : PackageBase
-{
-    public Dictionary<int, MyClassModel> P6 { get; set; }
-
-    public override void Package<TByteBlock>(ref TByteBlock byteBlock)
-    {
-        //字典类型，可以先判断是否为null
-        byteBlock.WriteIsNull(this.P6);
-        if (this.P6 != null)
-        {
-            //如果不为null
-            //就先写入字典长度
-            //然后遍历将每个项，按键、值写入
-            byteBlock.WriteInt32(this.P6.Count);
-            foreach (var item in this.P6)
-            {
-                byteBlock.WriteInt32(item.Key);
-                byteBlock.WritePackage(item.Value);//因为值MyClassModel实现了IPackage，所以可以直接写入
-            }
-        }
-    }
-
-    public override void Unpackage<TByteBlock>(ref TByteBlock byteBlock)
-    {
-        var isNull_6 = byteBlock.ReadIsNull();
-        if (!isNull_6)
-        {
-            var count = byteBlock.ReadInt32();
-            var dic = new Dictionary<int, MyClassModel>(count);
-            for (var i = 0; i < count; i++)
-            {
-                dic.Add(byteBlock.ReadInt32(), byteBlock.ReadPackage<MyClassModel>());
-            }
-            this.P6 = dic;
         }
     }
 }

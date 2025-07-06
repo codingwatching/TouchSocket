@@ -93,7 +93,7 @@ internal class TcpServiceReceiveAsyncPlugin : PluginBase, ITcpConnectedPlugin
                             index += r;
                         }
 
-                        byteBlock.Seek(index);
+                        byteBlock.Position+=index;
                     }
                 }
             }

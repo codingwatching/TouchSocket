@@ -192,12 +192,12 @@ internal class BigDataHttpContent : HttpContent
         return true;
     }
 
-    protected override async Task WriteContent(Func<ReadOnlyMemory<byte>, Task> writeFunc, CancellationToken token)
+    protected override async Task WriteContent(Func<ReadOnlyMemory<byte>,CancellationToken, Task> writeFunc, CancellationToken token)
     {
         var buffer = new byte[this.bufferLength];
         for (var i = 0; i < this.count; i++)
         {
-            await writeFunc.Invoke(buffer);
+            await writeFunc.Invoke(buffer,token);
             //Console.WriteLine(i);
         }
     }

@@ -131,7 +131,7 @@ public class MyUnfixedHeaderRequestInfo : IUnfixedHeaderRequestInfo
     }
 
 
-    public bool OnParsingHeader<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlock
+    public bool OnParsingHeader<TByteBlock>(ref TByteBlock byteBlock) where TByteBlock : IByteBlockReader
     {
         //在使用不固定包头解析时
 

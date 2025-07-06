@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TouchSocket.Core;
 using TouchSocket.Sockets;
@@ -98,11 +99,11 @@ internal class MyDataHandleAdapter : SingleStreamDataHandlingAdapter
 
     public override bool CanSplicingSend => false;
 
-    protected override async Task PreviewReceivedAsync(ByteBlock byteBlock)
+    protected override async Task PreviewReceivedAsync(IByteBlockReader byteBlock)
     {
         //收到从原始流式数据。
 
-        var buffer = byteBlock.TotalMemory.GetArray().Array;
+        var buffer = byteBlock.Memory.GetArray().Array;
         var r = byteBlock.Length;
         if (this.m_tempByteBlock == null)//如果没有临时包，则直接分包。
         {
@@ -133,7 +134,7 @@ internal class MyDataHandleAdapter : SingleStreamDataHandlingAdapter
     }
 
 
-    protected override async Task PreviewSendAsync(ReadOnlyMemory<byte> memory)
+    protected override async Task PreviewSendAsync(ReadOnlyMemory<byte> memory,CancellationToken token)
     {
         //在发送流式数据之前
 
@@ -149,7 +150,7 @@ internal class MyDataHandleAdapter : SingleStreamDataHandlingAdapter
         {
             byteBlock.WriteByte((byte)length);//先写长度
             byteBlock.Write(memory.Span);//再写数据
-            await this.GoSendAsync(byteBlock.Memory);
+            await this.GoSendAsync(byteBlock.Memory,token);
         }
     }
 
@@ -177,11 +178,11 @@ internal class MyDataHandleAdapter : SingleStreamDataHandlingAdapter
             {
                 byteBlock.Write(new ReadOnlySpan<byte>(item.Array, item.Offset, item.Count));//依次写入
             }
-            await this.GoSendAsync(byteBlock.Memory);
+            await this.GoSendAsync(byteBlock.Memory,CancellationToken.None);
         }
     }
 
-    protected override async Task PreviewSendAsync(IRequestInfo requestInfo)
+    protected override async Task PreviewSendAsync(IRequestInfo requestInfo,CancellationToken token)
     {
         //使用对象发送，在发送流式数据之前
 
@@ -201,7 +202,7 @@ internal class MyDataHandleAdapter : SingleStreamDataHandlingAdapter
                 byteBlock.WriteByte((byte)myClass.DataType);//然后数据类型
                 byteBlock.WriteByte((byte)myClass.OrderType);//然后指令类型
                 byteBlock.Write(data);//再写数据
-                await this.GoSendAsync(byteBlock.Memory);
+                await this.GoSendAsync(byteBlock.Memory, token);
             }
         }
     }

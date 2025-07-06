@@ -92,9 +92,11 @@ namespace TcpStressTestingConsoleApp
             var service = new TcpService();
             service.Received = async (client, e) =>
             {
-                e.ByteBlock.SetHolding(true);
-                await m_channel.Writer.WriteAsync(e.ByteBlock);
-                //client.Send(byteBlock);
+                ByteBlock byteBlock = new ByteBlock(e.ByteBlock.Length);
+                byteBlock.Write(e.ByteBlock.Span);//将收到的消息写入ByteBlock
+                byteBlock.SeekToStart();
+
+                await m_channel.Writer.WriteAsync(byteBlock);
             };
 
             await service.SetupAsync(new TouchSocketConfig()//载入配置

@@ -44,39 +44,55 @@ internal class Program
 
     private static void IPackageWriteRead()
     {
-        using (var byteBlock = new ByteBlock(1024*64))
+        var byteBlock = new ByteBlock(1024 * 64);
+        try
         {
-            byteBlock.WritePackage(new MyPackage()
+            MyPackage myPackage=new MyPackage()
             {
                 Property = 10
-            });
+            };
+            
+            byteBlock.WriteIsNull(myPackage);//写入是否为null
+
+            myPackage.Package(ref byteBlock);
+            
             byteBlock.SeekToStart();
 
-            var myPackage = byteBlock.ReadPackage<MyPackage>();
+            MyPackage newPackage;
+            if (byteBlock.ReadIsNull())
+            {
+                newPackage = default;
+            }
+            else
+            {
+                newPackage = new MyPackage();
+                newPackage.Unpackage(ref byteBlock);
+            }
         }
+        finally
+        {
+            byteBlock.Dispose();
+        }
+
+        
     }
 
     private static void BytesPackageWriteRead()
     {
-        using (var byteBlock = new ByteBlock(1024*64))
+        using (var byteBlock = new ByteBlock(1024 * 64))
         {
             byteBlock.WriteBytesPackage(Encoding.UTF8.GetBytes("TouchSocket"));
 
             byteBlock.SeekToStart();
 
-            var bytes = byteBlock.ReadBytesPackage();
-
-            byteBlock.SeekToStart();
-
             //使用下列方式即可高效完成读取
-            var memory = byteBlock.ReadBytesPackageMemory();
-
+            var bytes = byteBlock.ReadBytesPackageSpan();
         }
     }
 
     private static void PrimitiveWriteRead()
     {
-        using (var byteBlock = new ByteBlock(1024*64))
+        using (var byteBlock = new ByteBlock(1024 * 64))
         {
             byteBlock.WriteByte(byte.MaxValue);//写入byte类型
             byteBlock.WriteInt32(int.MaxValue);//写入int类型
@@ -94,7 +110,7 @@ internal class Program
 
     private static void BufferWriterWriteRead()
     {
-        using (var byteBlock = new ByteBlock(1024*64))
+        using (var byteBlock = new ByteBlock(1024 * 64))
         {
             var span = byteBlock.GetSpan(4);
             span[0] = 0;
@@ -116,7 +132,7 @@ internal class Program
 
     private static void BaseWriteRead()
     {
-        using (var byteBlock = new ByteBlock(1024*64))
+        using (var byteBlock = new ByteBlock(1024 * 64))
         {
             byteBlock.Write(new byte[] { 0, 1, 2, 3 });//将字节数组写入
 

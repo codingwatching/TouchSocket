@@ -92,7 +92,7 @@ internal class Program
             //此处接收服务器返回的消息
 
             var head = e.ByteBlock.ToArray(0, 2);
-            e.ByteBlock.Seek(2, SeekOrigin.Begin);
+            e.ByteBlock.Position=2;
             var flags = e.ByteBlock.ReadUInt16(EndianType.Big);
             var length = e.ByteBlock.ReadInt32(EndianType.Big);
 
@@ -137,8 +137,8 @@ internal class Program
         {
             //按照Head+Flags+Length+Data的格式。
             byteBlock.Write(Encoding.ASCII.GetBytes("dm"));
-            byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes((ushort)1));
-            byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes(jsonBytes.Length));
+            byteBlock.WriteUInt16(1, EndianType.Big);
+            byteBlock.WriteInt32(jsonBytes.Length, EndianType.Big);
             byteBlock.Write(jsonBytes);
 
             await tcpClient.SendAsync(byteBlock.Memory);
@@ -155,8 +155,8 @@ internal class Program
         {
             //按照Head+Flags+Length+Data的格式。
             byteBlock.Write(Encoding.ASCII.GetBytes("dm"));
-            byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes((ushort)5));
-            byteBlock.Write(TouchSocketBitConverter.BigEndian.GetBytes(jsonBytes.Length));
+            byteBlock.WriteUInt16(5, EndianType.Big);
+            byteBlock.WriteInt32(jsonBytes.Length, EndianType.Big);
             byteBlock.Write(jsonBytes);
 
             await tcpClient.SendAsync(byteBlock.Memory);

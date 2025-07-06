@@ -106,9 +106,9 @@ public partial class Form1 : Form
 
             this.cts = new CancellationTokenSource(5000);
             var bytes = await waitingClient.SendThenReturnAsync(this.textBox2.Text.ToUtf8Bytes(), this.cts.Token);
-            if (bytes != null)
+            if (!bytes .IsEmpty)
             {
-                MessageBox.Show($"message:{Encoding.UTF8.GetString(bytes)}");
+                MessageBox.Show($"message:{bytes.Span.ToString(Encoding.UTF8)}");
             }
         }
         catch (Exception ex)
@@ -152,9 +152,9 @@ public partial class Form1 : Form
             this.cts = new CancellationTokenSource(500000);
             var bytes = await waitingClient.SendThenReturnAsync(this.textBox3.Text.ToUtf8Bytes(), this.cts.Token);
 
-            if (bytes != null)
+            if (!bytes.IsEmpty)
             {
-                MessageBox.Show($"message:{Encoding.UTF8.GetString(bytes)}");
+                MessageBox.Show($"message:{bytes.Span.ToString(Encoding.UTF8)}");
             }
         }
         catch (Exception ex)

@@ -75,7 +75,7 @@ public class TcpServiceController : ControllerBase
                         return true;//此处可以筛选返回数据。
                     }
                 }).SendThenReturnAsync(Encoding.UTF8.GetBytes(msg));
-                return new Result(ResultCode.Success, Encoding.UTF8.GetString(result));
+                return new Result(ResultCode.Success, result.Span.ToString( Encoding.UTF8));
             }
             else
             {

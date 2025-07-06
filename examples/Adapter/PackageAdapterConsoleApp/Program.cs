@@ -91,9 +91,9 @@ internal class MyFixedSizePackageAdapter : FixedSizePackageAdapter
     {
     }
 
-    protected override Task PreviewSendAsync(ReadOnlyMemory<byte> memory)
+    protected override Task PreviewSendAsync(ReadOnlyMemory<byte> memory,CancellationToken token)
     {
         //重写之后直接发送，当然也可以自己判断一些信息
-        return this.GoSendAsync(memory);
+        return this.GoSendAsync(memory, token);
     }
 }

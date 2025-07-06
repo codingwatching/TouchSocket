@@ -22,17 +22,17 @@ namespace SerializationSelectorClassLibrary;
 
 public class MemoryPackSerializationSelector : ISerializationSelector
 {
-    public object DeserializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, Type parameterType) where TByteBlock : IByteBlock
+    public object DeserializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, Type parameterType) where TByteBlock : IByteBlockReader
     {
         var len = byteBlock.ReadInt32();
         var span = byteBlock.ReadToSpan(len);
         return MemoryPackSerializer.Deserialize(parameterType, span);
     }
 
-    public void SerializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, in object parameter) where TByteBlock : IByteBlock
+    public void SerializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, in object parameter) where TByteBlock : IByteBlockWriter
     {
         var pos = byteBlock.Position;
-        byteBlock.Seek(4, SeekOrigin.Current);
+        byteBlock.Position+=4;
         var memoryPackWriter = new MemoryPackWriter<TByteBlock>(ref byteBlock, null);
 
         MemoryPackSerializer.Serialize(parameter.GetType(), ref memoryPackWriter, parameter);
@@ -54,7 +54,7 @@ internal sealed class DefaultSerializationSelector : ISerializationSelector
     /// <param name="parameterType">预期反序列化出的对象类型。</param>
     /// <returns>反序列化后的对象。</returns>
     /// <exception cref="RpcException">抛出当未识别序列化类型时。</exception>
-    public object DeserializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, Type parameterType) where TByteBlock : IByteBlock
+    public object DeserializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, Type parameterType) where TByteBlock : IByteBlockReader
     {
         // 根据序列化类型选择不同的反序列化方式
         switch (serializationType)
@@ -95,7 +95,7 @@ internal sealed class DefaultSerializationSelector : ISerializationSelector
                     return parameterType.GetDefault();
                 }
                 // 使用Xml格式进行反序列化
-                return SerializeConvert.XmlDeserializeFromBytes(byteBlock.ReadBytesPackage(), parameterType);
+                return SerializeConvert.XmlDeserializeFromBytes(byteBlock.ReadBytesPackageSpan().ToArray(), parameterType);
             case (SerializationType)4:
                 {
                     var len = byteBlock.ReadInt32();
@@ -115,7 +115,7 @@ internal sealed class DefaultSerializationSelector : ISerializationSelector
     /// <param name="serializationType">序列化类型，决定了使用哪种方式序列化</param>
     /// <param name="parameter">待序列化的参数对象</param>
     /// <typeparam name="TByteBlock">字节块类型，必须实现IByteBlock接口</typeparam>
-    public void SerializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, in object parameter) where TByteBlock : IByteBlock
+    public void SerializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, in object parameter) where TByteBlock : IByteBlockWriter
     {
         // 根据序列化类型选择不同的序列化方法
         switch (serializationType)
@@ -180,7 +180,7 @@ internal sealed class DefaultSerializationSelector : ISerializationSelector
             case (SerializationType)4:
                 {
                     var pos = byteBlock.Position;
-                    byteBlock.Seek(4, SeekOrigin.Current);
+                    byteBlock.Position += 4;
                     var memoryPackWriter = new MemoryPackWriter<TByteBlock>(ref byteBlock, null);
 
                     MemoryPackSerializer.Serialize(parameter.GetType(), ref memoryPackWriter, parameter);

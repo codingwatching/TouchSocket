@@ -243,12 +243,12 @@ internal partial class MyClientRpcServer : SingletonRpcServer
 /// </summary>
 public class MySerializationSelector : ISerializationSelector
 {
-    public object DeserializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, Type parameterType) where TByteBlock : IByteBlock
+    public object DeserializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, Type parameterType) where TByteBlock : IByteBlockReader
     {
         throw new NotImplementedException();
     }
 
-    public void SerializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, in object parameter) where TByteBlock : IByteBlock
+    public void SerializeParameter<TByteBlock>(ref TByteBlock byteBlock, SerializationType serializationType, in object parameter) where TByteBlock : IByteBlockWriter
     {
         throw new NotImplementedException();
     }

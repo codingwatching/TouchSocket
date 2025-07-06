@@ -85,7 +85,7 @@ internal class Program
 
         //读取线圈
         var values = await master.ReadCoilsAsync(1, 0, 5);
-        foreach (var value in values)
+        foreach (var value in values.Span)
         {
             Console.WriteLine(value);
         }
